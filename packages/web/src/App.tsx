@@ -5,13 +5,13 @@ import ChatPage from './pages/Chat'
 import './App.css'
 
 function App() {
-  const { user, loading } = useAuthStore()
+  const { user, loading, checkAuth } = useAuthStore()
   const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
     // Check if user is already logged in
-    setIsInitialized(true)
-  }, [])
+    checkAuth().then(() => setIsInitialized(true))
+  }, [checkAuth])
 
   if (!isInitialized || loading) {
     return (
