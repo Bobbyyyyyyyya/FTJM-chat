@@ -5,12 +5,12 @@ import LoginPage from './pages/Login';
 import ChatPage from './pages/Chat';
 import './App.css';
 function App() {
-    const { user, loading } = useAuthStore();
+    const { user, loading, checkAuth } = useAuthStore();
     const [isInitialized, setIsInitialized] = useState(false);
     useEffect(() => {
         // Check if user is already logged in
-        setIsInitialized(true);
-    }, []);
+        checkAuth().then(() => setIsInitialized(true));
+    }, [checkAuth]);
     if (!isInitialized || loading) {
         return (_jsx("div", { className: "flex items-center justify-center h-screen bg-gray-900", children: _jsx("div", { className: "text-white text-xl", children: "Loading..." }) }));
     }

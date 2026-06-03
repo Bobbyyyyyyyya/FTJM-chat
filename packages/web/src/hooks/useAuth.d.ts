@@ -5,6 +5,7 @@ interface AuthState {
     login: (email: string, password: string) => Promise<void>;
     signup: (email: string, password: string, displayName: string) => Promise<void>;
     logout: () => Promise<void>;
+    checkAuth: () => Promise<void>;
 }
 export declare const useAuthStore: import("zustand").UseBoundStore<import("zustand").StoreApi<AuthState>>;
 export {};
