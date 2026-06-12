@@ -246,12 +246,21 @@ export function subscribeToForumThread(
   threadId: string,
   callback: (comment: ForumComment) => void
 ) {
-  const subscription = supabase
-    .from(`forum_comments:thread_id=eq.${threadId}`)
-    .on('INSERT', (payload) => {
-      callback(payload.new as ForumComment)
-    })
+  const channel = supabase
+    .channel(`forum-comments-${threadId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'forum_comments',
+        filter: `thread_id=eq.${threadId}`,
+      },
+      (payload: any) => {
+        callback(payload.new as ForumComment)
+      }
+    )
     .subscribe()
 
-  return subscription
+  return channel
 }

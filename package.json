@@ -7,6 +7,8 @@
   "packageManager": "pnpm@8.0.0",
   "scripts": {
     "dev": "bash dev.sh",
+    "start": "npm run dev",
+    "stop": "pkill -f 'packages/main/dist/main.js' || true && pkill -f 'vite' || true",
     "dev:web": "cd packages/web && npm run dev",
     "dev:electron": "NODE_ENV=development npx electron packages/main/dist/main.js",
     "build": "npm run build:shared && npm run build:web && npm run build:main",

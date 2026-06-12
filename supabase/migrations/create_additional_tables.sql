@@ -11,7 +11,6 @@
 -- ============================================================================
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
-  title text not null,
   content text not null,
   author_id uuid not null,
   created_at timestamp with time zone default now(),

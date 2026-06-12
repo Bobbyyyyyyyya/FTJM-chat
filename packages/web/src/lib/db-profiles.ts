@@ -3,17 +3,24 @@ import { supabase } from './supabase'
 
 export interface Profile {
   id: string
-  email: string
-  display_name: string
-  bio?: string
-  photo_url?: string
-  notification_settings: {
-    sound: boolean
-    desktop: boolean
-  }
-  thema: 'dark' | 'light'
-  role: 'user' | 'admin' | 'mod'
-  public_key?: string
+  email?: string | null
+  role?: 'user' | 'admin' | 'mod' | null
+  original_name?: string | null
+  public_key?: string | null
+  display_name?: string | null
+  name_locked_until?: string | null
+  bio?: string | null
+  bio_locked_until?: string | null
+  photo_url?: string | null
+  notification_settings?: {
+    sound?: boolean
+    desktop?: boolean
+  } | null
+  custom_theme?: Record<string, unknown> | null
+  use_custom_theme?: boolean
+  custom_sounds?: Record<string, unknown> | null
+  admin_notes?: string | null
+  is_blocked?: boolean
   created_at: string
   updated_at: string
 }
@@ -52,8 +59,6 @@ export async function getCurrentProfile() {
 
 // Get any public profile
 export async function getProfile(userId: string) {
-  // Note: RLS will only allow fetching own profile as authenticated user
-  // This is intentional - profiles are private by default
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -172,14 +177,22 @@ export async function deleteNotification(notificationId: string) {
 export function subscribeToNotifications(
   callback: (notification: Notification) => void
 ) {
-  const subscription = supabase
-    .from('notifications')
-    .on('INSERT', (payload) => {
-      callback(payload.new as Notification)
-    })
+  const channel = supabase
+    .channel('notifications')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+      },
+      (payload: any) => {
+        callback(payload.new as Notification)
+      }
+    )
     .subscribe()
 
-  return subscription
+  return channel
 }
 
 // ====== NICKNAMES (@mentions) ======
