@@ -8,18 +8,25 @@
 // ============================================================================
 
 export interface Profile {
-  id: string // UUID from auth.users
-  email: string
-  display_name: string
-  bio?: string
-  photo_url?: string
-  notification_settings: {
-    sound: boolean
-    desktop: boolean
-  }
-  thema: 'dark' | 'light'
-  role: 'user' | 'admin' | 'mod'
-  public_key?: string
+  id: string
+  email?: string | null
+  role?: 'user' | 'admin' | 'mod' | null
+  original_name?: string | null
+  public_key?: string | null
+  display_name?: string | null
+  name_locked_until?: string | null
+  bio?: string | null
+  bio_locked_until?: string | null
+  photo_url?: string | null
+  notification_settings?: {
+    sound?: boolean
+    desktop?: boolean
+  } | null
+  custom_theme?: Record<string, unknown> | null
+  use_custom_theme?: boolean
+  custom_sounds?: Record<string, unknown> | null
+  admin_notes?: string | null
+  is_blocked?: boolean
   created_at: string
   updated_at: string
 }
@@ -36,7 +43,6 @@ export interface Nickname {
 
 export interface Post {
   id: string
-  title: string
   content: string
   author_id: string
   created_at: string

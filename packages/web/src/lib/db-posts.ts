@@ -3,7 +3,6 @@ import { supabase } from './supabase'
 
 export interface Post {
   id: string
-  title: string
   content: string
   author_id: string
   created_at: string
@@ -45,14 +44,12 @@ export async function getPostsByAuthor(authorId: string) {
 // Create a new post in general chat
 export async function createPost(
   authorId: string,
-  title: string,
   content: string
 ) {
   const { data, error } = await supabase
     .from('posts')
     .insert({
       author_id: authorId,
-      title,
       content,
     })
     .select()
@@ -69,13 +66,11 @@ export async function createPost(
 // Update own post
 export async function updatePost(
   postId: string,
-  title: string,
   content: string
 ) {
   const { data, error } = await supabase
     .from('posts')
     .update({
-      title,
       content,
       updated_at: new Date().toISOString(),
     })
@@ -105,15 +100,33 @@ export async function deletePost(postId: string) {
 }
 
 // Subscribe to real-time posts (General Chat updates)
+import type { RealtimePayload } from './types'
+
 export function subscribeToGeneralChat(
-  callback: (post: Post) => void
+  callback: (payload: RealtimePayload<Post>) => void
 ) {
-  const subscription = supabase
-    .from('posts')
-    .on('*', (payload) => {
-      callback(payload.new as Post)
-    })
+  const channel = supabase
+    .channel('posts-general', { config: { private: true } })
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'posts',
+      },
+      (payload: any) => {
+        const p: RealtimePayload<Post> = {
+          type: (payload.eventType || payload.type || '').toString().toUpperCase() as any,
+          new: payload.new as Post | undefined,
+          old: payload.old as Post | undefined,
+          schema: payload.schema,
+          table: payload.table,
+          commit_timestamp: payload.commit_timestamp,
+        }
+        callback(p)
+      }
+    )
     .subscribe()
 
-  return subscription
+  return channel
 }

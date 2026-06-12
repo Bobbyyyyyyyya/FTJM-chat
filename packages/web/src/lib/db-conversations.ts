@@ -194,18 +194,68 @@ export async function getTypingStatus(conversationId: string) {
 }
 
 // Subscribe to real-time messages in a conversation
+import type { RealtimePayload } from './types'
+
 export function subscribeToMessages(
   conversationId: string,
-  callback: (message: Message) => void
+  callback: (payload: RealtimePayload<Message>) => void
 ) {
-  const subscription = supabase
-    .from(`messages:conversation_id=eq.${conversationId}`)
-    .on('*', (payload) => {
-      callback(payload.new as Message)
-    })
-    .subscribe()
+  const topic = `messages-${conversationId}`
+  const channel = supabase.channel(topic, { config: { private: true } })
+  console.log('[Realtime] creating message channel', {
+    topic,
+    conversationId,
+    channelType: 'postgres_changes',
+    private: true,
+  })
 
-  return subscription
+  const subscribedChannel = channel
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload: any) => {
+        console.log('[Realtime] messages payload', {
+          topic,
+          selectedConvId: conversationId,
+          event: payload.eventType || payload.type,
+          payload,
+          new: Boolean(payload.new),
+          old: Boolean(payload.old),
+          commit_timestamp: payload.commit_timestamp,
+          schema: payload.schema,
+          table: payload.table,
+        })
+        const p: RealtimePayload<Message> = {
+          type: (payload.eventType || payload.type || '').toString().toUpperCase() as any,
+          new: payload.new as Message | undefined,
+          old: payload.old as Message | undefined,
+          schema: payload.schema,
+          table: payload.table,
+          commit_timestamp: payload.commit_timestamp,
+        }
+        callback(p)
+      }
+    )
+    .subscribe((status) => {
+      console.log('[Realtime] messages channel status', {
+        topic,
+        status,
+        channelState: channel?.state,
+        channelId: (channel as any)?.id,
+      })
+    })
+
+  console.debug('[Realtime] messages subscribe returned', {
+    topic,
+    subscribedChannel,
+  })
+
+  return subscribedChannel
 }
 
 // Subscribe to real-time typing status
@@ -213,13 +263,22 @@ export function subscribeToTypingStatus(
   conversationId: string,
   callback: (typingUsers: TypingStatus[]) => void
 ) {
-  const subscription = supabase
-    .from(`typing:conversation_id=eq.${conversationId}`)
-    .on('*', async () => {
-      const users = await getTypingStatus(conversationId)
-      callback(users)
-    })
+  const channel = supabase
+    .channel(`typing-${conversationId}`, { config: { private: true } })
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'typing',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      async () => {
+        const users = await getTypingStatus(conversationId)
+        callback(users)
+      }
+    )
     .subscribe()
 
-  return subscription
+  return channel
 }

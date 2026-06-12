@@ -42,11 +42,11 @@ drop policy if exists "profiles_update_own" on public.profiles;
 drop policy if exists "public_profiles_read" on public.profiles;
 drop policy if exists "users_can_update_own_profile" on public.profiles;
 
--- SELECT: authenticated can only read own profile
-create policy "profiles_select_own"
+-- SELECT: authenticated can read public profile fields for any user
+create policy "profiles_select_public"
   on profiles for select
   to authenticated
-  using (auth.uid() = id);
+  using (true);
 
 -- INSERT: authenticated can only insert own profile
 create policy "profiles_insert_own"

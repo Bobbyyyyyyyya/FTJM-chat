@@ -1,0 +1,32 @@
+import CryptoJS from 'crypto-js';
+const SECRET_KEY = 'your-secret-encryption-key-at-least-32-chars';
+export const GC_PREFIX = 'gc:';
+export function encryptText(plaintext) {
+    const encrypted = CryptoJS.AES.encrypt(plaintext, SECRET_KEY).toString();
+    return `${GC_PREFIX}${encrypted}`;
+}
+export function decryptText(ciphertext) {
+    if (!ciphertext)
+        return ciphertext;
+    const payload = ciphertext.startsWith(GC_PREFIX)
+        ? ciphertext.slice(GC_PREFIX.length)
+        : ciphertext;
+    try {
+        const bytes = CryptoJS.AES.decrypt(payload, SECRET_KEY);
+        const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+        return decrypted || ciphertext;
+    }
+    catch (error) {
+        console.error('Failed to decrypt text:', error);
+        return ciphertext;
+    }
+}
+export function maybeDecryptText(text, isEncrypted = false) {
+    if (!text)
+        return text;
+    if (isEncrypted || text.startsWith(GC_PREFIX)) {
+        return decryptText(text);
+    }
+    return text;
+}
+//# sourceMappingURL=crypto.js.map

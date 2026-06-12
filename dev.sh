@@ -20,9 +20,12 @@ echo "  📱 React dev server on http://localhost:5173"
 echo "  🖥️  Electron app (starting in 5 seconds)..."
 echo ""
 
-# Start Vite in background
-cd "$PROJECT_ROOT/packages/web" && npm run dev > /tmp/vite.log 2>&1 &
+# Start Vite in background and keep output visible
+cd "$PROJECT_ROOT/packages/web" && npm run dev &
 VITE_PID=$!
+
+# Kill Vite if this script exits
+trap 'kill $VITE_PID 2>/dev/null' EXIT
 
 # Wait for Vite to start
 sleep 5
