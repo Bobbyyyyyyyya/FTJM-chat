@@ -12,6 +12,7 @@ export default defineConfig({
       '@ftjm/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
