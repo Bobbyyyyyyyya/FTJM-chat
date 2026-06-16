@@ -24,6 +24,8 @@ linux:
   target:
     - AppImage
     - deb
+  category: Utility
+  maintainer: "FTJM Team <team@ftjm.chat>"
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
