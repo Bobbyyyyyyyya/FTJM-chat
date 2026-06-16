@@ -7,13 +7,14 @@ import {
 } from 'electron'
 import pkg from 'electron-updater'
 import * as path from 'path'
-import * as isDev from 'electron-is-dev'
 import { fileURLToPath } from 'url'
 
 const { autoUpdater } = pkg
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+const isDev = !app.isPackaged
 
 let mainWindow: BrowserWindow | null
 
@@ -49,7 +50,7 @@ const createWindow = () => {
   })
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('Page failed to load:', errorCode, errorDescription)
+    console.log('Page failed to load:', errorCode, errorDescription)
   })
 }
 
