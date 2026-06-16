@@ -74,7 +74,11 @@ app.on('activate', () => {
 })
 
 function setupAutoUpdater() {
-  autoUpdater.checkForUpdatesAndNotify()
+  try {
+    autoUpdater.checkForUpdatesAndNotify()
+  } catch (err) {
+    console.error('Auto-updater failed (this is expected on very new macOS versions):', err)
+  }
 }
 
 function setupIpcHandlers() {

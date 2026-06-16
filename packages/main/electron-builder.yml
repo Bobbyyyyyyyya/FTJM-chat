@@ -1,11 +1,11 @@
 appId: com.ftjm.chat
 productName: FTJM Chat
+
 directories:
   buildResources: assets
-  output: dist
+  output: release
 files:
   - dist/**/*
-  - node_modules/**/*
 extraResources:
   - from: web-dist
     to: web-dist
