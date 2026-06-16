@@ -92,16 +92,31 @@ export async function deleteMessage(messageId) {
 }
 // Update typing status
 export async function setTypingStatus(conversationId, userId, isTyping) {
-    const { data, error } = await supabase
+    const existing = await supabase
         .from('typing')
-        .upsert({
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId)
+        .maybeSingle();
+    const payload = {
         conversation_id: conversationId,
         user_id: userId,
         is_typing: isTyping,
         last_updated: new Date().toISOString(),
-    })
-        .select()
-        .single();
+    };
+    let query;
+    if (existing.data) {
+        query = supabase
+            .from('typing')
+            .update(payload)
+            .eq('id', existing.data.id);
+    }
+    else {
+        query = supabase
+            .from('typing')
+            .insert({ ...payload, id: crypto.randomUUID() });
+    }
+    const { data, error } = await query.select().single();
     if (error) {
         console.error('❌ Error updating typing status:', error);
         throw error;

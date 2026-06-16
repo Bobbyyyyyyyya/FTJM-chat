@@ -2,11 +2,13 @@
   "name": "@ftjm/main",
   "version": "0.1.0",
   "description": "Electron main process",
+  "author": "FTJM Team",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc --watch",
-    "build": "tsc",
+    "build": "tsc && npm run copy-web",
+    "copy-web": "node -e \"fs.cpSync('../web/dist', 'web-dist', {recursive: true, filter: (src) => !src.includes('node_modules')})\"",
     "start": "cd .. && npm run start",
     "electron:start": "NODE_ENV=development npx electron dist/main.js",
     "package": "electron-builder",
@@ -15,8 +17,8 @@
     "package:linux": "electron-builder --linux"
   },
   "dependencies": {
-    "electron-updater": "^6.1.0",
-    "electron-is-dev": "^3.0.1"
+    "electron-is-dev": "^3.0.1",
+    "electron-updater": "^6.1.0"
   },
   "devDependencies": {
     "electron": "^28.0.0",
