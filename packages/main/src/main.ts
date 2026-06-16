@@ -28,9 +28,14 @@ const createWindow = () => {
     },
   })
 
-  const startUrl = isDev
-    ? 'http://localhost:5173'
-    : `file://${path.join(__dirname, '../../packages/web/dist/index.html')}`
+  let startUrl: string
+  if (isDev) {
+    startUrl = 'http://localhost:5173'
+  } else if (app.isPackaged) {
+    startUrl = `file://${path.join(process.resourcesPath, 'web-dist/index.html')}`
+  } else {
+    startUrl = `file://${path.join(__dirname, '../../packages/web/dist/index.html')}`
+  }
 
   console.log('Loading URL:', startUrl)
   mainWindow.loadURL(startUrl)

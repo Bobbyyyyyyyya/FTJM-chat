@@ -63,11 +63,11 @@ export async function getProfile(userId: string) {
     .from('profiles')
     .select('*')
     .eq('id', userId)
-    .single()
+    .maybeSingle()
 
   if (error) {
     console.error('❌ Error fetching profile:', error)
-    return null // Return null instead of throwing - permission denied is expected
+    return null
   }
 
   return data as Profile | null
