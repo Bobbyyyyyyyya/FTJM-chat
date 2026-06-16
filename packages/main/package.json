@@ -7,7 +7,8 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc --watch",
-    "build": "tsc && npm run copy-web",
+    "build": "npm run prebuild && tsc && npm run copy-web",
+    "prebuild": "node -e \"const fs=require('fs'); const src='../../node_modules/electron'; const dest='node_modules/electron'; if(!fs.existsSync(dest)){try{fs.mkdirSync('node_modules',{recursive:true});fs.symlinkSync(src,dest,'dir')}catch(e){console.error('symlink failed:',e)}}\"",
     "copy-web": "node -e \"fs.cpSync('../web/dist', 'web-dist', {recursive: true, filter: (src) => !src.includes('node_modules')})\"",
     "start": "cd .. && npm run start",
     "electron:start": "NODE_ENV=development npx electron dist/main.js",
@@ -21,7 +22,7 @@
     "electron-updater": "^6.1.0"
   },
   "devDependencies": {
-    "electron": "^28.0.0",
+    "electron": "^42.3.1",
     "electron-builder": "^24.6.0",
     "typescript": "^5.3.0"
   }
