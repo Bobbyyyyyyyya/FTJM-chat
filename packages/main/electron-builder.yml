@@ -26,6 +26,7 @@ linux:
     - deb
   category: Utility
   maintainer: "FTJM Team <team@ftjm.chat>"
+  artifactName: "${productName}_${version}_${arch}.${ext}"
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
