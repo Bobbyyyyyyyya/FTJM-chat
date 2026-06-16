@@ -1,5 +1,6 @@
 // Database service for managing conversations (DMs)
 import { supabase } from './supabase'
+import type { RealtimePayload } from './types'
 
 export interface Conversation {
   id: string
@@ -210,23 +211,14 @@ export async function getTypingStatus(conversationId: string) {
   return data as TypingStatus[]
 }
 
-// Subscribe to real-time messages in a conversation
-import type { RealtimePayload } from './types'
-
 export function subscribeToMessages(
   conversationId: string,
   callback: (payload: RealtimePayload<Message>) => void
 ) {
   const topic = `messages-${conversationId}`
   const channel = supabase.channel(topic, { config: { private: true } })
-  console.log('[Realtime] creating message channel', {
-    topic,
-    conversationId,
-    channelType: 'postgres_changes',
-    private: true,
-  })
 
-  const subscribedChannel = channel
+  channel
     .on(
       'postgres_changes',
       {
@@ -236,46 +228,23 @@ export function subscribeToMessages(
         filter: `conversation_id=eq.${conversationId}`,
       },
       (payload: any) => {
-        console.log('[Realtime] messages payload', {
-          topic,
-          selectedConvId: conversationId,
-          event: payload.eventType || payload.type,
-          payload,
-          new: Boolean(payload.new),
-          old: Boolean(payload.old),
-          commit_timestamp: payload.commit_timestamp,
+        const eventType = (payload.eventType || payload.type || '').toString().toUpperCase()
+        if (!eventType || !['INSERT', 'UPDATE', 'DELETE'].includes(eventType)) return
+        callback({
+          type: eventType as any,
+          new: payload.new,
+          old: payload.old,
           schema: payload.schema,
           table: payload.table,
+          commit_timestamp: payload.commit_timestamp,
         })
-        const p: RealtimePayload<Message> = {
-          type: (payload.eventType || payload.type || '').toString().toUpperCase() as any,
-          new: payload.new as Message | undefined,
-          old: payload.old as Message | undefined,
-          schema: payload.schema,
-          table: payload.table,
-          commit_timestamp: payload.commit_timestamp,
-        }
-        callback(p)
       }
     )
-    .subscribe((status) => {
-      console.log('[Realtime] messages channel status', {
-        topic,
-        status,
-        channelState: channel?.state,
-        channelId: (channel as any)?.id,
-      })
-    })
+    .subscribe()
 
-  console.debug('[Realtime] messages subscribe returned', {
-    topic,
-    subscribedChannel,
-  })
-
-  return subscribedChannel
+  return channel
 }
 
-// Subscribe to real-time typing status
 export function subscribeToTypingStatus(
   conversationId: string,
   callback: (typingUsers: TypingStatus[]) => void

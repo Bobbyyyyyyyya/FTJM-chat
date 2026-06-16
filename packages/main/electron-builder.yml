@@ -32,5 +32,5 @@ nsis:
   allowToChangeInstallationDirectory: true
 publish:
   provider: github
-  owner: your-username
-  repo: ftjm-chat
+  owner: Bobbyyyyyyyya
+  repo: FTJM-chat

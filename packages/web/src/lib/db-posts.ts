@@ -1,5 +1,6 @@
 // Database service for managing posts (General Chat)
 import { supabase } from './supabase'
+import type { RealtimePayload } from './types'
 
 export interface Post {
   id: string
@@ -99,9 +100,6 @@ export async function deletePost(postId: string) {
   }
 }
 
-// Subscribe to real-time posts (General Chat updates)
-import type { RealtimePayload } from './types'
-
 export function subscribeToGeneralChat(
   callback: (payload: RealtimePayload<Post>) => void
 ) {
@@ -115,15 +113,16 @@ export function subscribeToGeneralChat(
         table: 'posts',
       },
       (payload: any) => {
-        const p: RealtimePayload<Post> = {
-          type: (payload.eventType || payload.type || '').toString().toUpperCase() as any,
-          new: payload.new as Post | undefined,
-          old: payload.old as Post | undefined,
+        const eventType = (payload.eventType || payload.type || '').toString().toUpperCase()
+        if (!eventType || !['INSERT', 'UPDATE', 'DELETE'].includes(eventType)) return
+        callback({
+          type: eventType as any,
+          new: payload.new,
+          old: payload.old,
           schema: payload.schema,
           table: payload.table,
           commit_timestamp: payload.commit_timestamp,
-        }
-        callback(p)
+        })
       }
     )
     .subscribe()
