@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -41,14 +44,20 @@ jobs:
         run: pnpm build
 
       - name: Package
-        run: pnpm package
+        run: cd packages/main && npx electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: packages/main/release/FTJM Chat*
+          files: |
+            packages/main/release/*.dmg
+            packages/main/release/*.exe
+            packages/main/release/*.AppImage
+            packages/main/release/*.zip
+            packages/main/release/*.blockmap
+            packages/main/release/latest*.yml
           draft: false
           prerelease: false
         env:
