@@ -11,7 +11,7 @@ extraResources:
     to: web-dist
     filter:
       - "**/*"
-afterPack: scripts/afterPack.js
+afterPack: scripts/afterPack.cjs
 mac:
   target:
     - dmg
