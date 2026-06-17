@@ -58,32 +58,7 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
-      - name: Pack app (unpacked)
-        if: matrix.os == 'macos-latest'
-        run: cd packages/main && npx electron-builder --dir --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-
-      - name: Ad-hoc sign macOS app
-        if: matrix.os == 'macos-latest'
-        run: |
-          APP_PATH=$(find packages/main/release -name "FTJM Chat.app" -type d)
-          echo "Signing: $APP_PATH"
-          codesign --force --deep -s - "$APP_PATH"
-          codesign --verify --verbose=4 "$APP_PATH"
-
-      - name: Package DMG/ZIP
-        if: matrix.os == 'macos-latest'
-        run: |
-          APP_PATH=$(find packages/main/release -name "FTJM Chat.app" -type d)
-          cd packages/main && npx electron-builder --prepackaged "$APP_PATH" --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Package (Windows / Linux)
-        if: matrix.os != 'macos-latest'
+      - name: Package
         run: cd packages/main && npx electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

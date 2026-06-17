@@ -12,6 +12,7 @@ extraResources:
     filter:
       - "**/*"
 mac:
+  afterPack: scripts/afterPack.js
   target:
     - dmg
     - zip
