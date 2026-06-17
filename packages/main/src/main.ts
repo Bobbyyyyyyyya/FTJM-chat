@@ -4,6 +4,7 @@ import {
   Menu,
   ipcMain,
   Notification,
+  dialog,
 } from 'electron'
 import pkg from 'electron-updater'
 import * as path from 'path'
@@ -76,7 +77,29 @@ app.on('activate', () => {
 
 function setupAutoUpdater() {
   try {
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.autoDownload = true
+
+    autoUpdater.on('checking-for-update', () => {
+      mainWindow?.webContents.send('update-status', 'checking')
+    })
+
+    autoUpdater.on('update-available', (info) => {
+      mainWindow?.webContents.send('update-status', 'available', info)
+    })
+
+    autoUpdater.on('update-not-available', (info) => {
+      mainWindow?.webContents.send('update-status', 'not-available', info)
+    })
+
+    autoUpdater.on('download-progress', (progress) => {
+      mainWindow?.webContents.send('update-status', 'downloading', progress)
+    })
+
+    autoUpdater.on('update-downloaded', (info) => {
+      mainWindow?.webContents.send('update-status', 'downloaded', info)
+    })
+
+    autoUpdater.checkForUpdates()
   } catch (err) {
     console.error('Auto-updater failed (this is expected on very new macOS versions):', err)
   }
@@ -92,6 +115,18 @@ function setupIpcHandlers() {
 
   ipcMain.handle('get-window-focused', () => {
     return mainWindow?.isFocused() || false
+  })
+
+  ipcMain.handle('check-for-updates', () => {
+    try {
+      autoUpdater.checkForUpdates()
+    } catch (err) {
+      console.error('Manual check for updates failed:', err)
+    }
+  })
+
+  ipcMain.handle('install-update', () => {
+    autoUpdater.quitAndInstall()
   })
 }
 
