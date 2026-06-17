@@ -12,10 +12,12 @@ extraResources:
     filter:
       - "**/*"
 mac:
+  identity: "Dev Code Sign"
   target:
     - dmg
     - zip
   category: public.app-category.productivity
+  hardenedRuntime: false
 win:
   target:
     - nsis
