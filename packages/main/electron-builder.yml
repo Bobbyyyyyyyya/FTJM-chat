@@ -12,7 +12,6 @@ extraResources:
     filter:
       - "**/*"
 mac:
-  identity: false
   target:
     - dmg
     - zip
