@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from './hooks/useAuth'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
+import UpdateNotifier from './components/UpdateNotifier'
 import './App.css'
 
 function App() {
@@ -21,7 +22,12 @@ function App() {
     )
   }
 
-  return user ? <ChatPage /> : <LoginPage />
+  return (
+    <>
+      {user ? <ChatPage /> : <LoginPage />}
+      <UpdateNotifier />
+    </>
+  )
 }
 
 export default App
