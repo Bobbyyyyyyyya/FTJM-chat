@@ -48,7 +48,7 @@ jobs:
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: packages/main/dist/FTJM Chat*
+          files: packages/main/release/FTJM Chat*
           draft: false
           prerelease: false
         env:
