@@ -44,9 +44,7 @@ const createWindow = () => {
   console.log('Loading URL:', startUrl)
   mainWindow.loadURL(startUrl)
 
-  if (isDev) {
-    mainWindow.webContents.openDevTools()
-  }
+  mainWindow.webContents.openDevTools()
 
   mainWindow.on('closed', () => {
     mainWindow = null
