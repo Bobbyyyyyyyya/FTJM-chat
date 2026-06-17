@@ -20,6 +20,7 @@
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win",
     "package:linux": "electron-builder --linux",
+    "type-check": "tsc --noEmit",
     "sign:verify": "codesign --verify --verbose=4 \"$(find release -name '*.app' -type d)\" && spctl -a -v \"$(find release -name '*.app' -type d)\""
   },
   "dependencies": {
