@@ -18,6 +18,8 @@ const __dirname = path.dirname(__filename)
 const isDev = !app.isPackaged
 
 let mainWindow: BrowserWindow | null
+let loadRetryCount = 0
+const MAX_LOAD_RETRIES = 30
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -50,8 +52,22 @@ const createWindow = () => {
     mainWindow = null
   })
 
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.log('Page failed to load:', errorCode, errorDescription)
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.log('Page failed to load:', errorCode, errorDescription, validatedURL)
+    if (errorCode === -3) return
+    if (!startUrl) return
+    if (loadRetryCount >= MAX_LOAD_RETRIES) {
+      console.error('Max load retries reached, giving up')
+      return
+    }
+    loadRetryCount++
+    setTimeout(() => {
+      mainWindow?.loadURL(startUrl)
+    }, 2000)
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    loadRetryCount = 0
   })
 }
 
