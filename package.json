@@ -16,7 +16,7 @@
     "build:web": "cd packages/web && npm run build",
     "build:main": "cd packages/main && npm run build",
     "package": "npm run build && cd packages/main && npm run package",
-    "type-check": "cd packages/web && npm run type-check && cd ../main && npm run type-check"
+    "type-check": "cd packages/shared && npm run type-check && cd ../web && npm run type-check && cd ../main && npm run type-check"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
