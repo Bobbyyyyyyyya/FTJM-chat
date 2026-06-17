@@ -11,8 +11,8 @@ extraResources:
     to: web-dist
     filter:
       - "**/*"
+afterPack: scripts/afterPack.js
 mac:
-  afterPack: scripts/afterPack.js
   target:
     - dmg
     - zip
