@@ -574,7 +574,8 @@ export default function ChatPage() {
                 ) : (
                   generalChat.map((post) => {
                     const isMine = post.author_id === user?.id
-                    const authorName = isMine ? 'You' : `User ${post.author_id.slice(0, 6)}`
+                    const authorInfo = getParticipantInfo(post.author_id)
+                    const authorName = isMine ? 'You' : authorInfo.display_name
                     return (
                       <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
                         <div className="flex items-center gap-3 mb-3">
