@@ -16,7 +16,8 @@
     "build:web": "cd packages/web && npm run build",
     "build:main": "cd packages/main && npm run build",
     "package": "npm run build && cd packages/main && npm run package",
-    "type-check": "cd packages/shared && npm run type-check && cd ../web && npm run type-check && cd ../main && npm run type-check"
+    "type-check": "cd packages/shared && npm run type-check && cd ../web && npm run type-check && cd ../main && npm run type-check",
+    "postinstall": "node -e \"import { copyFileSync, constants } from 'fs'; try { copyFileSync('.env.example', '.env.local', constants.COPYFILE_EXCL); console.log('✅ .env.local created from .env.example'); } catch(e) { if(e.code !== 'EEXIST') console.error(e); }\""
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
