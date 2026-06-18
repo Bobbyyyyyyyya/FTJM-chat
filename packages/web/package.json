@@ -7,8 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit",
-    "postinstall": "node -e \"try { require('fs').copyFileSync('.env.example', '.env.local', require('fs').constants.COPYFILE_EXCL); console.log('✅ .env.local created from .env.example'); } catch(e) { if(e.code !== 'EEXIST') console.error(e); }\""
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
