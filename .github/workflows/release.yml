@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Setup env files
+        run: cp .env.example .env.local
+
       - name: Build
         run: pnpm build
 
