@@ -127,27 +127,7 @@ npm run build
 See [DEV_GUIDE.md](DEV_GUIDE.md) for more troubleshooting.
 
 ## Project Status
-
-- ✅ Monorepo setup complete
-- ✅ React app with Vite dev server
-- ✅ Electron with IPC bridge
-- ✅ TypeScript configured
-- ✅ Builds working
-- 🔲 Supabase database schema (TODO: create tables)
-- 🔲 Auth integration (TODO: connect to backend)
-- 🔲 Real-time messaging (TODO: implement)
-- 🔲 Notifications (TODO: implement)
-- 🔲 Auto-update pipeline (TODO: GitHub releases)
-
-## Next Steps
-
-1. Create Supabase database tables (see SUPABASE_SCHEMA.md)
-2. Implement auth flow (sign up, login)
-3. Build conversations view
-4. Add real-time messaging
-5. Implement notifications
-6. Setup auto-updates
-
+Open beta
 ## License
 
 MIT
