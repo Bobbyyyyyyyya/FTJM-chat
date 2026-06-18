@@ -18,6 +18,7 @@ import {
   type Post,
 } from '@/lib/db'
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
+import { MessageEmbeds, LinkifyText } from '@/components/EmbedCard'
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -531,9 +532,10 @@ export default function ChatPage() {
                               {isMine ? 'You' : participant.display_name}
                             </span>
                           </div>
-                          <p className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
-                            {maybeDecryptText(msg.text, msg.is_encrypted)}
-                          </p>
+                          <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
+                            <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
+                          </div>
+                          <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                           <p className={`text-[10px] mt-1 ${isMine ? 'text-emerald-200' : 'text-muted'}`}>{time}</p>
                         </div>
                         {isMine && (
@@ -588,9 +590,10 @@ export default function ChatPage() {
                             <p className="text-[11px] text-muted">{new Date(post.created_at).toLocaleString()}</p>
                           </div>
                         </div>
-                        <p className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
-                          {maybeDecryptText(post.content)}
-                        </p>
+                        <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
+                          <LinkifyText text={maybeDecryptText(post.content)} />
+                        </div>
+                        <MessageEmbeds text={maybeDecryptText(post.content)} />
                       </div>
                     )
                   })
