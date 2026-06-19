@@ -1,6 +1,6 @@
 {
   "name": "@ftjm/main",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Electron main process",
   "author": {
     "name": "FTJM Team",
@@ -29,7 +29,16 @@
     "fs-extra": "^11.2.0",
     "universalify": "^2.0.1",
     "graceful-fs": "^4.2.11",
-    "jsonfile": "^6.1.0"
+    "jsonfile": "^6.1.0",
+    "builder-util-runtime": "^9.2.1",
+    "js-yaml": "^4.1.0",
+    "lazy-val": "^1.0.5",
+    "lodash.escaperegexp": "^4.1.2",
+    "lodash.isequal": "^4.5.0",
+    "semver": "^7.5.4",
+    "tiny-typed-emitter": "^2.1.0",
+    "debug": "^4.3.4",
+    "sax": "^1.2.4"
   },
   "devDependencies": {
     "electron": "^42.3.1",
