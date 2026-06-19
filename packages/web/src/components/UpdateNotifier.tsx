@@ -3,10 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 type UpdateState =
   | { status: 'idle' }
   | { status: 'checking' }
-  | { status: 'available'; version: string }
+  | { status: 'available'; version: string; url: string }
   | { status: 'not-available' }
-  | { status: 'downloading'; percent: number }
-  | { status: 'downloaded'; version: string }
   | { status: 'error'; message: string }
 
 export default function UpdateNotifier() {
@@ -20,20 +18,11 @@ export default function UpdateNotifier() {
           setState({ status: 'checking' })
           break
         case 'available':
-          setState({ status: 'available', version: data?.version || '' })
+          setState({ status: 'available', version: data?.version || '', url: data?.url || '' })
           break
         case 'not-available':
           setState({ status: 'not-available' })
           setTimeout(() => setState({ status: 'idle' }), 5000)
-          break
-        case 'downloading':
-          setState({
-            status: 'downloading',
-            percent: Math.round(data?.percent || 0),
-          })
-          break
-        case 'downloaded':
-          setState({ status: 'downloaded', version: data?.version || '' })
           break
         case 'error':
           setState({ status: 'error', message: data || 'Update check failed' })
@@ -44,9 +33,12 @@ export default function UpdateNotifier() {
     return cleanup
   }, [])
 
-  const handleInstall = useCallback(() => {
-    window.electron.installUpdate()
-  }, [])
+  const handleDownload = useCallback(() => {
+    if (state.status === 'available' && state.url) {
+      window.electron.openUpdateUrl(state.url)
+    }
+    setState({ status: 'idle' })
+  }, [state])
 
   const handleDismiss = useCallback(() => {
     setState({ status: 'idle' })
@@ -80,39 +72,17 @@ export default function UpdateNotifier() {
         )}
 
         {state.status === 'available' && (
-          <div className="flex items-center gap-3">
-            <span className="text-blue-400 text-lg">↓</span>
-            <span>Update v{state.version} available — downloading...</span>
-          </div>
-        )}
-
-        {state.status === 'downloading' && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="text-blue-400 text-lg">↓</span>
-              <span>Downloading update... {state.percent}%</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${state.percent}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {state.status === 'downloaded' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="text-green-400 text-lg">✓</span>
-              <span className="font-medium">Update v{state.version} ready to install</span>
+              <span className="text-blue-400 text-lg">↓</span>
+              <span className="font-medium">v{state.version} available</span>
             </div>
             <div className="flex gap-2">
               <button
-                onClick={handleInstall}
+                onClick={handleDownload}
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
               >
-                Restart & Install
+                Download
               </button>
               <button
                 onClick={handleDismiss}

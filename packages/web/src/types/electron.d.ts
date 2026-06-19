@@ -5,7 +5,7 @@ declare global {
       isWindowFocused: () => Promise<boolean>
       onUpdateStatus: (callback: (status: string, data?: any) => void) => () => void
       checkForUpdates: () => Promise<void>
-      installUpdate: () => Promise<void>
+      openUpdateUrl: (url: string) => Promise<void>
     }
   }
 }

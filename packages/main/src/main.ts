@@ -4,16 +4,17 @@ import {
   Menu,
   ipcMain,
   Notification,
-  dialog,
+  shell,
 } from 'electron'
-import pkg from 'electron-updater'
+import https from 'https'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
-const { autoUpdater } = pkg
-
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+const GITHUB_OWNER = 'Bobbyyyyyyyya'
+const GITHUB_REPO = 'FTJM-chat'
 
 const isDev = !app.isPackaged
 
@@ -72,7 +73,8 @@ const createWindow = () => {
 app.on('ready', () => {
   createWindow()
   if (!isDev) {
-    setupAutoUpdater()
+    setTimeout(checkForUpdates, 5000)
+    setInterval(checkForUpdates, 3600000)
   }
   setupIpcHandlers()
 })
@@ -89,47 +91,39 @@ app.on('activate', () => {
   }
 })
 
-function setupAutoUpdater() {
-  try {
-    autoUpdater.autoDownload = true
+function checkForUpdates() {
+  if (!mainWindow) return
+  mainWindow.webContents.send('update-status', 'checking')
 
-    autoUpdater.setFeedURL({
-      provider: 'github',
-      owner: 'Bobbyyyyyyyya',
-      repo: 'FTJM-chat',
-    })
+  const currentVersion = app.getVersion()
+  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
 
-    autoUpdater.on('checking-for-update', () => {
-      mainWindow?.webContents.send('update-status', 'checking')
+  https.get(url, { headers: { 'User-Agent': 'FTJM-Chat' } }, (res) => {
+    let body = ''
+    res.on('data', (chunk) => { body += chunk })
+    res.on('end', () => {
+      try {
+        const release = JSON.parse(body)
+        if (!release.tag_name) {
+          mainWindow?.webContents.send('update-status', 'error', 'Could not fetch release info')
+          return
+        }
+        const latestVersion = release.tag_name.replace(/^v/, '')
+        if (latestVersion !== currentVersion) {
+          mainWindow?.webContents.send('update-status', 'available', {
+            version: latestVersion,
+            url: release.html_url,
+          })
+        } else {
+          mainWindow?.webContents.send('update-status', 'not-available')
+        }
+      } catch {
+        mainWindow?.webContents.send('update-status', 'error', 'Failed to parse update info')
+      }
     })
-
-    autoUpdater.on('update-available', (info) => {
-      mainWindow?.webContents.send('update-status', 'available', info)
-    })
-
-    autoUpdater.on('update-not-available', (info) => {
-      mainWindow?.webContents.send('update-status', 'not-available', info)
-    })
-
-    autoUpdater.on('download-progress', (progress) => {
-      mainWindow?.webContents.send('update-status', 'downloading', progress)
-    })
-
-    autoUpdater.on('update-downloaded', (info) => {
-      mainWindow?.webContents.send('update-status', 'downloaded', info)
-    })
-
-    autoUpdater.on('error', (err) => {
-      console.error('Auto-updater error:', err)
-      mainWindow?.webContents.send('update-status', 'error', err.message || err)
-    })
-
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.error('checkForUpdates failed:', err)
-    })
-  } catch (err) {
-    console.error('Auto-updater setup failed:', err)
-  }
+  }).on('error', (err) => {
+    mainWindow?.webContents.send('update-status', 'error', err.message)
+  })
 }
 
 function setupIpcHandlers() {
@@ -145,17 +139,11 @@ function setupIpcHandlers() {
   })
 
   ipcMain.handle('check-for-updates', () => {
-    try {
-      autoUpdater.checkForUpdates().catch((err) => {
-        console.error('Manual check for updates failed:', err)
-      })
-    } catch (err) {
-      console.error('Manual check for updates failed:', err)
-    }
+    checkForUpdates()
   })
 
-  ipcMain.handle('install-update', () => {
-    autoUpdater.quitAndInstall()
+  ipcMain.handle('open-update-url', (_event, url: string) => {
+    shell.openExternal(url)
   })
 }
 
