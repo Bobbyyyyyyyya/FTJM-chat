@@ -11,6 +11,7 @@ extraResources:
       - "**/*"
 afterPack: scripts/afterPack.cjs
 mac:
+  identity: null
   target:
     - dmg
     - zip
