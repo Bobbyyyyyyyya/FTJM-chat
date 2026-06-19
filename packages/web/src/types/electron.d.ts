@@ -6,6 +6,7 @@ declare global {
       onUpdateStatus: (callback: (status: string, data?: any) => void) => () => void
       checkForUpdates: () => Promise<void>
       openUpdateUrl: (url: string) => Promise<void>
+      installUpdate: () => Promise<void>
     }
   }
 }

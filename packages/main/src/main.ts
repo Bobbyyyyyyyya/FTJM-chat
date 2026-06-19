@@ -6,15 +6,19 @@ import {
   Notification,
   shell,
 } from 'electron'
+import pkg from 'electron-updater'
 import https from 'https'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+
+const { autoUpdater } = pkg
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const GITHUB_OWNER = 'Bobbyyyyyyyya'
 const GITHUB_REPO = 'FTJM-chat'
+const isMac = process.platform === 'darwin'
 
 const isDev = !app.isPackaged
 
@@ -95,6 +99,55 @@ function checkForUpdates() {
   if (!mainWindow) return
   mainWindow.webContents.send('update-status', 'checking')
 
+  if (isMac) {
+    checkGithubRelease()
+  } else {
+    setupUpdaterListeners()
+    autoUpdater.autoDownload = true
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+    })
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('checkForUpdates failed:', err)
+    })
+  }
+}
+
+let updaterListenersRegistered = false
+
+function setupUpdaterListeners() {
+  if (updaterListenersRegistered) return
+  updaterListenersRegistered = true
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('update-status', 'available', {
+      version: info?.version,
+    })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    mainWindow?.webContents.send('update-status', 'not-available')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('update-status', 'downloading', progress)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('update-status', 'downloaded', {
+      version: info?.version,
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('Auto-updater error:', err)
+    mainWindow?.webContents.send('update-status', 'error', err.message || err)
+  })
+}
+
+function checkGithubRelease() {
   const currentVersion = app.getVersion()
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
 
@@ -144,6 +197,12 @@ function setupIpcHandlers() {
 
   ipcMain.handle('open-update-url', (_event, url: string) => {
     shell.openExternal(url)
+  })
+
+  ipcMain.handle('install-update', () => {
+    if (!isMac) {
+      autoUpdater.quitAndInstall()
+    }
   })
 }
 

@@ -3,8 +3,10 @@ import { useState, useEffect, useCallback } from 'react'
 type UpdateState =
   | { status: 'idle' }
   | { status: 'checking' }
-  | { status: 'available'; version: string; url: string }
+  | { status: 'available'; version: string; url?: string }
   | { status: 'not-available' }
+  | { status: 'downloading'; percent: number }
+  | { status: 'downloaded'; version: string }
   | { status: 'error'; message: string }
 
 export default function UpdateNotifier() {
@@ -24,6 +26,15 @@ export default function UpdateNotifier() {
           setState({ status: 'not-available' })
           setTimeout(() => setState({ status: 'idle' }), 5000)
           break
+        case 'downloading':
+          setState({
+            status: 'downloading',
+            percent: Math.round(data?.percent || 0),
+          })
+          break
+        case 'downloaded':
+          setState({ status: 'downloaded', version: data?.version || '' })
+          break
         case 'error':
           setState({ status: 'error', message: data || 'Update check failed' })
           setTimeout(() => setState({ status: 'idle' }), 8000)
@@ -39,6 +50,10 @@ export default function UpdateNotifier() {
     }
     setState({ status: 'idle' })
   }, [state])
+
+  const handleInstall = useCallback(() => {
+    window.electron.installUpdate()
+  }, [])
 
   const handleDismiss = useCallback(() => {
     setState({ status: 'idle' })
@@ -78,11 +93,53 @@ export default function UpdateNotifier() {
               <span className="font-medium">v{state.version} available</span>
             </div>
             <div className="flex gap-2">
+              {state.url ? (
+                <button
+                  onClick={handleDownload}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
+                >
+                  Download
+                </button>
+              ) : (
+                <span className="text-sm text-gray-400">Downloading...</span>
+              )}
               <button
-                onClick={handleDownload}
+                onClick={handleDismiss}
+                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        )}
+
+        {state.status === 'downloading' && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="text-blue-400 text-lg">↓</span>
+              <span>Downloading update... {state.percent}%</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${state.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {state.status === 'downloaded' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-green-400 text-lg">✓</span>
+              <span className="font-medium">Update v{state.version} ready to install</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleInstall}
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
               >
-                Download
+                Restart & Install
               </button>
               <button
                 onClick={handleDismiss}
