@@ -240,7 +240,11 @@ export function subscribeToMessages(
         })
       }
     )
-    .subscribe()
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error(`❌ Messages realtime subscription error for ${conversationId}`)
+      }
+    })
 
   return channel
 }
@@ -264,7 +268,11 @@ export function subscribeToTypingStatus(
         callback(users)
       }
     )
-    .subscribe()
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error(`❌ Typing realtime subscription error for ${conversationId}`)
+      }
+    })
 
   return channel
 }

@@ -104,7 +104,7 @@ export function subscribeToGeneralChat(
   callback: (payload: RealtimePayload<Post>) => void
 ) {
   const channel = supabase
-    .channel('posts-general', { config: { private: true } })
+    .channel('posts-general')
     .on(
       'postgres_changes',
       {
@@ -125,7 +125,11 @@ export function subscribeToGeneralChat(
         })
       }
     )
-    .subscribe()
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('❌ General chat realtime subscription error')
+      }
+    })
 
   return channel
 }
