@@ -7,6 +7,7 @@ type UpdateState =
   | { status: 'not-available' }
   | { status: 'downloading'; percent: number }
   | { status: 'downloaded'; version: string }
+  | { status: 'error'; message: string }
 
 export default function UpdateNotifier() {
   const [state, setState] = useState<UpdateState>({ status: 'idle' })
@@ -34,6 +35,10 @@ export default function UpdateNotifier() {
         case 'downloaded':
           setState({ status: 'downloaded', version: data?.version || '' })
           break
+        case 'error':
+          setState({ status: 'error', message: data || 'Update check failed' })
+          setTimeout(() => setState({ status: 'idle' }), 8000)
+          break
       }
     })
     return cleanup
@@ -49,6 +54,19 @@ export default function UpdateNotifier() {
 
   if (state.status === 'idle' || state.status === 'not-available') {
     return null
+  }
+
+  if (state.status === 'error') {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+        <div className="bg-gray-800 border border-red-700 rounded-lg shadow-2xl p-4 text-white">
+          <div className="flex items-center gap-3">
+            <span className="text-red-400 text-lg">⚠</span>
+            <span className="text-sm">{state.message}</span>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

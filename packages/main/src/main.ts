@@ -93,6 +93,12 @@ function setupAutoUpdater() {
   try {
     autoUpdater.autoDownload = true
 
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'Bobbyyyyyyyya',
+      repo: 'FTJM-chat',
+    })
+
     autoUpdater.on('checking-for-update', () => {
       mainWindow?.webContents.send('update-status', 'checking')
     })
@@ -113,9 +119,16 @@ function setupAutoUpdater() {
       mainWindow?.webContents.send('update-status', 'downloaded', info)
     })
 
-    autoUpdater.checkForUpdates()
+    autoUpdater.on('error', (err) => {
+      console.error('Auto-updater error:', err)
+      mainWindow?.webContents.send('update-status', 'error', err.message || err)
+    })
+
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('checkForUpdates failed:', err)
+    })
   } catch (err) {
-    console.error('Auto-updater failed (this is expected on very new macOS versions):', err)
+    console.error('Auto-updater setup failed:', err)
   }
 }
 
@@ -133,7 +146,9 @@ function setupIpcHandlers() {
 
   ipcMain.handle('check-for-updates', () => {
     try {
-      autoUpdater.checkForUpdates()
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('Manual check for updates failed:', err)
+      })
     } catch (err) {
       console.error('Manual check for updates failed:', err)
     }
