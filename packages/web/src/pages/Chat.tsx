@@ -581,9 +581,11 @@ export default function ChatPage() {
                     return (
                       <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
                         <div className="flex items-center gap-3 mb-3">
-                          <button onClick={() => openProfile(post.author_id, authorName)}
+                          <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
                             className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-emerald-300 transition-all">
-                            {getAvatarInitials(authorName)}
+                            {authorInfo.photo_url ? (
+                              <img src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
+                            ) : getAvatarInitials(authorName)}
                           </button>
                           <div>
                             <p className="text-sm font-semibold text-primary">{authorName}</p>
