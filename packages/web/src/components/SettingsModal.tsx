@@ -13,14 +13,24 @@ interface NotificationSettings {
 }
 
 interface CustomTheme {
-  surface?: string
-  surface_muted?: string
-  body?: string
-  text?: string
-  text_secondary?: string
-  text_muted?: string
-  border?: string
-  border_subtle?: string
+  opacity?: number
+  pattern?: string
+  wallpaper?: string
+  text_color?: string
+  blur_amount?: number
+  font_family?: string
+  accent_color?: string
+  chat_opacity?: number
+  glass_effect?: boolean
+  body_bg_color?: string
+  border_radius?: number
+  card_bg_color?: string
+  primary_color?: string
+  agreed_terms_v2?: boolean
+  header_bg_color?: string
+  secondary_color?: string
+  sidebar_bg_color?: string
+  profile_card_opacity?: number
 }
 
 const DEFAULT_NOTIFICATIONS: NotificationSettings = {
@@ -34,14 +44,56 @@ const DEFAULT_NOTIFICATIONS: NotificationSettings = {
 }
 
 const DEFAULT_THEME: CustomTheme = {
-  surface: '255 255 255',
-  surface_muted: '249 250 251',
-  body: '249 250 251',
-  text: '17 24 39',
-  text_secondary: '107 114 128',
-  text_muted: '156 163 175',
-  border: '229 231 235',
-  border_subtle: '243 244 246',
+  glass_effect: false,
+  agreed_terms_v2: false,
+}
+
+function hexToRgb(hex: string): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!result) return ''
+  return `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}`
+}
+
+function applyCustomTheme(t: CustomTheme) {
+  const root = document.documentElement
+  if (t.body_bg_color) root.style.setProperty('--body', hexToRgb(t.body_bg_color))
+  if (t.card_bg_color) root.style.setProperty('--surface', hexToRgb(t.card_bg_color))
+  if (t.sidebar_bg_color) root.style.setProperty('--surface-muted', hexToRgb(t.sidebar_bg_color))
+  if (t.header_bg_color) root.style.setProperty('--surface', hexToRgb(t.header_bg_color))
+  if (t.text_color) {
+    root.style.setProperty('--text', hexToRgb(t.text_color))
+    root.style.setProperty('--text-secondary', hexToRgb(t.text_color))
+  }
+  if (t.secondary_color) {
+    root.style.setProperty('--text-secondary', hexToRgb(t.secondary_color))
+    root.style.setProperty('--text-muted', hexToRgb(t.secondary_color))
+  }
+  if (t.accent_color) {
+    root.style.setProperty('--border', hexToRgb(t.accent_color))
+    root.style.setProperty('--border-subtle', hexToRgb(t.accent_color))
+  }
+  if (t.wallpaper) {
+    document.body.style.backgroundImage = `url(${t.wallpaper})`
+    document.body.style.backgroundSize = 'cover'
+    document.body.style.backgroundAttachment = 'fixed'
+    document.body.style.backgroundPosition = 'center'
+  } else {
+    document.body.style.backgroundImage = ''
+  }
+  root.style.setProperty('--glass-bg', t.glass_effect ? 'rgba(0,0,0,0.15)' : '')
+  root.style.setProperty('--glass-blur', t.glass_effect ? `${t.blur_amount || 2}px` : '')
+  if (t.font_family) root.style.fontFamily = t.font_family
+  if (t.border_radius) root.style.setProperty('--custom-radius', `${t.border_radius}px`)
+  if (t.chat_opacity) root.style.setProperty('--chat-opacity', `${t.chat_opacity / 100}`)
+  if (t.profile_card_opacity) root.style.setProperty('--profile-opacity', `${t.profile_card_opacity / 100}`)
+}
+
+function clearCustomTheme() {
+  const root = document.documentElement
+  const vars = ['--body', '--surface', '--surface-muted', '--text', '--text-secondary', '--text-muted', '--border', '--border-subtle', '--glass-bg', '--glass-blur', '--custom-radius', '--chat-opacity', '--profile-opacity']
+  vars.forEach((v) => root.style.removeProperty(v))
+  root.style.fontFamily = ''
+  document.body.style.backgroundImage = ''
 }
 
 export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -64,10 +116,12 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
       setUseCustomTheme(p.use_custom_theme || false)
       if (p.custom_theme) {
         setTheme({ ...DEFAULT_THEME, ...p.custom_theme as any })
+        applyCustomTheme({ ...DEFAULT_THEME, ...p.custom_theme as any })
       }
       setDesktopNotif(Notification.permission === 'granted')
     }
     load()
+    return () => clearCustomTheme()
   }, [isOpen, user?.id])
 
   const requestDesktopNotif = async () => {
@@ -75,26 +129,14 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
     setDesktopNotif(result === 'granted')
   }
 
-  const applyThemePreview = (t: CustomTheme) => {
-    const root = document.documentElement
-    root.style.setProperty('--surface', t.surface || DEFAULT_THEME.surface!)
-    root.style.setProperty('--surface-muted', t.surface_muted || DEFAULT_THEME.surface_muted!)
-    root.style.setProperty('--body', t.body || DEFAULT_THEME.body!)
-    root.style.setProperty('--text', t.text || DEFAULT_THEME.text!)
-    root.style.setProperty('--text-secondary', t.text_secondary || DEFAULT_THEME.text_secondary!)
-    root.style.setProperty('--text-muted', t.text_muted || DEFAULT_THEME.text_muted!)
-    root.style.setProperty('--border', t.border || DEFAULT_THEME.border!)
-    root.style.setProperty('--border-subtle', t.border_subtle || DEFAULT_THEME.border_subtle!)
-  }
-
   const handleSave = async () => {
     if (!user?.id) return
     setSaving(true)
     try {
       if (useCustomTheme) {
-        applyThemePreview(theme)
+        applyCustomTheme(theme)
       } else {
-        applyThemePreview(DEFAULT_THEME)
+        clearCustomTheme()
       }
       await updateProfile({
         notification_settings: notif as any,
@@ -113,10 +155,10 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
     setNotif((prev) => ({ ...prev, [key]: value }))
   }
 
-  const setThemeField = (key: keyof CustomTheme, value: string) => {
+  const setThemeField = <K extends keyof CustomTheme>(key: K, value: CustomTheme[K]) => {
     const updated = { ...theme, [key]: value }
     setTheme(updated)
-    applyThemePreview(updated)
+    applyCustomTheme(updated)
   }
 
   if (!isOpen) return null
@@ -154,7 +196,6 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
         <div className="px-6 py-5 max-h-96 overflow-y-auto space-y-5">
           {tab === 'notifications' ? (
             <>
-              {/* Desktop notifications */}
               <div>
                 <h3 className="text-sm font-semibold text-primary mb-3">Desktop Notifications</h3>
                 <div className="flex items-center justify-between py-2">
@@ -170,16 +211,12 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
 
               <div className="border-t border-subtle pt-4">
                 <h3 className="text-sm font-semibold text-primary mb-3">In-App Notifications</h3>
-
-                {/* Toggles */}
                 <div className="space-y-3">
                   <ToggleRow label="Enable sounds" value={notif.enable_sounds} onChange={(v) => setNotifField('enable_sounds', v)} />
                   <ToggleRow label="New messages" value={notif.notify_new_messages} onChange={(v) => setNotifField('notify_new_messages', v)} />
                   <ToggleRow label="Mentions" value={notif.notify_mentions} onChange={(v) => setNotifField('notify_mentions', v)} />
                   <ToggleRow label="New posts in General" value={notif.notify_new_posts} onChange={(v) => setNotifField('notify_new_posts', v)} />
                 </div>
-
-                {/* Sound URLs */}
                 <div className="mt-4 space-y-3">
                   <SoundInput label="Message sound URL" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} />
                   <SoundInput label="Post sound URL" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} />
@@ -191,37 +228,75 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
             <>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-primary">Enable custom theme</span>
-                <button onClick={() => { setUseCustomTheme(!useCustomTheme); if (useCustomTheme) applyThemePreview(DEFAULT_THEME) }}
+                <button onClick={() => { setUseCustomTheme(!useCustomTheme); if (!useCustomTheme) applyCustomTheme(theme); else clearCustomTheme() }}
                   className={`w-10 h-5 rounded-full transition-all relative ${useCustomTheme ? 'bg-emerald-500' : 'bg-surface-muted border border-subtle'}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${useCustomTheme ? 'left-5' : 'left-0.5'}`} />
                 </button>
               </div>
 
               {useCustomTheme && (
-                <div className="space-y-3 pt-3 border-t border-subtle">
-                  <ColorInput label="Surface" value={theme.surface || ''} onChange={(v) => setThemeField('surface', v)} />
-                  <ColorInput label="Surface muted" value={theme.surface_muted || ''} onChange={(v) => setThemeField('surface_muted', v)} />
-                  <ColorInput label="Body background" value={theme.body || ''} onChange={(v) => setThemeField('body', v)} />
-                  <ColorInput label="Text" value={theme.text || ''} onChange={(v) => setThemeField('text', v)} />
-                  <ColorInput label="Text secondary" value={theme.text_secondary || ''} onChange={(v) => setThemeField('text_secondary', v)} />
-                  <ColorInput label="Text muted" value={theme.text_muted || ''} onChange={(v) => setThemeField('text_muted', v)} />
-                  <ColorInput label="Border" value={theme.border || ''} onChange={(v) => setThemeField('border', v)} />
-                  <ColorInput label="Border subtle" value={theme.border_subtle || ''} onChange={(v) => setThemeField('border_subtle', v)} />
+                <div className="space-y-4 pt-3 border-t border-subtle">
+                  {/* Essentials */}
+                  <Section title="Colors">
+                    <HexInput label="Body background" value={theme.body_bg_color || ''} onChange={(v) => setThemeField('body_bg_color', v)} />
+                    <HexInput label="Card background" value={theme.card_bg_color || ''} onChange={(v) => setThemeField('card_bg_color', v)} />
+                    <HexInput label="Header background" value={theme.header_bg_color || ''} onChange={(v) => setThemeField('header_bg_color', v)} />
+                    <HexInput label="Sidebar background" value={theme.sidebar_bg_color || ''} onChange={(v) => setThemeField('sidebar_bg_color', v)} />
+                    <HexInput label="Text" value={theme.text_color || ''} onChange={(v) => setThemeField('text_color', v)} />
+                    <HexInput label="Primary" value={theme.primary_color || ''} onChange={(v) => setThemeField('primary_color', v)} />
+                    <HexInput label="Secondary" value={theme.secondary_color || ''} onChange={(v) => setThemeField('secondary_color', v)} />
+                    <HexInput label="Accent" value={theme.accent_color || ''} onChange={(v) => setThemeField('accent_color', v)} />
+                  </Section>
 
-                  <button onClick={() => { const d = DEFAULT_THEME; setTheme(d as CustomTheme); applyThemePreview(d as CustomTheme) }}
-                    className="text-xs text-muted hover:text-secondary transition-colors mt-2">
+                  {/* Wallpaper */}
+                  <Section title="Wallpaper">
+                    <TextInput label="Wallpaper URL" value={theme.wallpaper || ''} onChange={(v) => setThemeField('wallpaper', v)} placeholder="https://example.com/image.gif" />
+                    {theme.wallpaper && (
+                      <div className="h-24 rounded-xl bg-cover bg-center border border-subtle" style={{ backgroundImage: `url(${theme.wallpaper})` }} />
+                    )}
+                    <div className="flex gap-2">
+                      <PatternBtn label="None" value="" current={theme.pattern || ''} onClick={(v) => setThemeField('pattern', v)} />
+                      <PatternBtn label="Grid" value="grid" current={theme.pattern || ''} onClick={(v) => setThemeField('pattern', v)} />
+                      <PatternBtn label="Dots" value="dots" current={theme.pattern || ''} onClick={(v) => setThemeField('pattern', v)} />
+                    </div>
+                  </Section>
+
+                  {/* Effects */}
+                  <Section title="Effects">
+                    <ToggleRow label="Glass effect" value={theme.glass_effect || false} onChange={(v) => setThemeField('glass_effect', v)} />
+                    <RangeInput label="Blur amount" value={theme.blur_amount ?? 2} min={0} max={20} onChange={(v) => setThemeField('blur_amount', v)} />
+                    <RangeInput label="Opacity" value={theme.opacity ?? 100} min={0} max={100} onChange={(v) => setThemeField('opacity', v)} />
+                    <RangeInput label="Chat opacity" value={theme.chat_opacity ?? 100} min={0} max={100} onChange={(v) => setThemeField('chat_opacity', v)} />
+                    <RangeInput label="Profile card opacity" value={theme.profile_card_opacity ?? 100} min={0} max={100} onChange={(v) => setThemeField('profile_card_opacity', v)} />
+                  </Section>
+
+                  {/* Layout */}
+                  <Section title="Layout">
+                    <RangeInput label="Border radius" value={theme.border_radius ?? 12} min={0} max={40} onChange={(v) => setThemeField('border_radius', v)} />
+                    <div>
+                      <label className="text-xs text-muted font-medium mb-1 block">Font family</label>
+                      <select value={theme.font_family || 'system'} onChange={(e) => setThemeField('font_family', e.target.value === 'system' ? '' : e.target.value)}
+                        className="input-field !py-2 !text-xs">
+                        <option value="system">System</option>
+                        <option value="mono">Mono</option>
+                        <option value="serif">Serif</option>
+                        <option value="sans-serif">Sans-serif</option>
+                      </select>
+                    </div>
+                  </Section>
+
+                  {/* Legal */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <input type="checkbox" id="terms" checked={theme.agreed_terms_v2 || false}
+                      onChange={(e) => setThemeField('agreed_terms_v2', e.target.checked)}
+                      className="rounded border-subtle text-emerald-500 focus:ring-emerald-400" />
+                    <label htmlFor="terms" className="text-xs text-secondary">I agree to the terms v2</label>
+                  </div>
+
+                  <button onClick={() => { setTheme(DEFAULT_THEME); clearCustomTheme() }}
+                    className="text-xs text-muted hover:text-secondary transition-colors">
                     Reset to defaults
                   </button>
-
-                  {/* Preview */}
-                  <div className="mt-4 p-4 rounded-2xl border border-subtle" style={{ backgroundColor: `rgb(${theme.body || DEFAULT_THEME.body})` }}>
-                    <p className="text-xs font-semibold text-muted mb-2">Preview</p>
-                    <div className="space-y-2 p-3 rounded-xl" style={{ backgroundColor: `rgb(${theme.surface || DEFAULT_THEME.surface})`, border: `1px solid rgb(${theme.border || DEFAULT_THEME.border})` }}>
-                      <p style={{ color: `rgb(${theme.text || DEFAULT_THEME.text})` }} className="text-sm font-medium">Sample card</p>
-                      <p style={{ color: `rgb(${theme.text_secondary || DEFAULT_THEME.text_secondary})` }} className="text-xs">This is how cards will look</p>
-                      <p style={{ color: `rgb(${theme.text_muted || DEFAULT_THEME.text_muted})` }} className="text-[10px]">muted text example</p>
-                    </div>
-                  </div>
                 </div>
               )}
             </>
@@ -244,6 +319,15 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
   )
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">{title}</h4>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
 function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="flex items-center justify-between py-1">
@@ -252,6 +336,19 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
         className={`w-10 h-5 rounded-full transition-all relative ${value ? 'bg-emerald-500' : 'bg-surface-muted border border-subtle'}`}>
         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${value ? 'left-5' : 'left-0.5'}`} />
       </button>
+    </div>
+  )
+}
+
+function HexInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-secondary w-28 shrink-0">{label}</span>
+      <input type="color" value={value || '#000000'} onChange={(e) => onChange(e.target.value)}
+        className="w-8 h-8 rounded-lg border border-subtle cursor-pointer bg-transparent" />
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder="#000000"
+        className="input-field !py-1.5 !text-xs flex-1" />
     </div>
   )
 }
@@ -267,25 +364,36 @@ function SoundInput({ label, value, onChange }: { label: string; value: string; 
   )
 }
 
-function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const [r, g, b] = value.split(' ').map(Number)
-  const toHex = (r: number, g: number, b: number) => {
-    return '#' + [r, g, b].map((x) => Math.max(0, Math.min(255, x || 0)).toString(16).padStart(2, '0')).join('')
-  }
-  const fromHex = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-    if (!result) return value
-    return `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}`
-  }
+function TextInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <label className="text-xs text-muted font-medium mb-1 block">{label}</label>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="input-field !py-2 !text-xs" />
+    </div>
+  )
+}
 
+function RangeInput({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
   return (
     <div className="flex items-center gap-3">
       <span className="text-xs text-secondary w-28 shrink-0">{label}</span>
-      <input type="color" value={toHex(r, g, b)} onChange={(e) => onChange(fromHex(e.target.value))}
-        className="w-8 h-8 rounded-lg border border-subtle cursor-pointer bg-transparent" />
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder="R G B"
-        className="input-field !py-1.5 !text-xs flex-1" />
+      <input type="range" value={value} min={min} max={max}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 accent-emerald-500 h-1.5" />
+      <span className="text-xs text-muted w-8 text-right">{value}</span>
     </div>
+  )
+}
+
+function PatternBtn({ label, value, current, onClick }: { label: string; value: string; current: string; onClick: (v: string) => void }) {
+  return (
+    <button onClick={() => onClick(value)}
+      className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
+        current === value ? 'bg-emerald-500 text-white shadow-sm' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
+      }`}>
+      {label}
+    </button>
   )
 }
