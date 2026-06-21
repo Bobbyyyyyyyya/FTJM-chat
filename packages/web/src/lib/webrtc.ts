@@ -42,54 +42,26 @@ export function listenForSignals(userId: string, handler: SignalHandler) {
 export function sendSignal(toUserId: string, signal: CallSignal) {
   console.log('[call] sendSignal to', toUserId, signal.type)
 
-  let entry = outgoingChannels.get(toUserId)
-  if (!entry) {
-    console.log('[call] creating new outgoing channel for', toUserId)
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null
-    const channel = supabase.channel(`calls-${toUserId}`)
-    entry = { channel, ready: false, queue: [signal] }
-    outgoingChannels.set(toUserId, entry)
-    channel.subscribe((status) => {
-      console.log('[call] outgoing channel status for', toUserId, status)
+  // Use REST API for sending (more reliable than WebSocket push)
+  const sendViaRest = () => {
+    const ch = supabase.channel(`calls-${toUserId}`)
+    ch.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        entry!.ready = true
-        if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null }
-        for (const s of entry!.queue) {
-          channel.send({ type: 'broadcast', event: 'signal', payload: s })
-        }
-        entry!.queue = []
+        await (ch as any).httpSend('signal', signal).catch((e: any) => {
+          console.error('[call] httpSend failed, trying WebSocket:', e)
+          ch.send({ type: 'broadcast', event: 'signal', payload: signal })
+        })
+        setTimeout(() => supabase.removeChannel(ch), 3000)
       } else if (status === 'CHANNEL_ERROR') {
-        console.error('[call] Send channel error for', toUserId)
-        outgoingChannels.delete(toUserId)
+        console.error('[call] send REST channel error')
       }
     })
-    // Fallback if subscription takes too long
-    fallbackTimer = setTimeout(() => {
-      if (!entry!.ready) {
-        console.log('[call] outgoing channel timeout, sending via temp channel')
-        outgoingChannels.delete(toUserId)
-        const tmp = supabase.channel(`calls-${toUserId}`)
-        tmp.subscribe((s) => {
-          if (s === 'SUBSCRIBED') {
-            tmp.send({ type: 'broadcast', event: 'signal', payload: signal })
-            setTimeout(() => supabase.removeChannel(tmp), 3000)
-          }
-        })
-      }
-    }, 4000)
-  } else if (entry.ready) {
-    entry.channel.send({ type: 'broadcast', event: 'signal', payload: signal })
-  } else {
-    console.log('[call] queuing signal for', toUserId, signal.type)
-    entry.queue.push(signal)
   }
+  sendViaRest()
 }
 
 export function cleanupSignals() {
-  for (const { channel } of outgoingChannels.values()) {
-    supabase.removeChannel(channel)
-  }
-  outgoingChannels.clear()
+  // Any cleanup if needed
 }
 
 export async function getLocalStream(video = false): Promise<MediaStream> {
