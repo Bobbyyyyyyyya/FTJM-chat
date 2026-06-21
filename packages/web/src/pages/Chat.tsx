@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '@/hooks/useAuth'
 import {
   getConversations,
@@ -24,6 +24,16 @@ import {
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
 import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
+import {
+  listenForSignals,
+  sendSignal,
+  getLocalStream,
+  createPeerConnection,
+  cleanupMediaStream,
+  type CallSignal,
+} from '@/lib/webrtc'
+import CallUI from '@/components/CallUI'
+import { startRingtone, stopRingtone } from '@/lib/ringtone'
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -70,6 +80,48 @@ export default function ChatPage() {
   const [editingValue, setEditingValue] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
+
+  // Call state
+  const [callState, setCallState] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle')
+  const [callVideo, setCallVideo] = useState(false)
+  const [callRemoteName, setCallRemoteName] = useState('')
+  const [callMuted, setCallMuted] = useState(false)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [incomingCaller, setIncomingCaller] = useState<string | null>(null)
+  const pcRef = useRef<RTCPeerConnection | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const pendingOfferRef = useRef<string | null>(null)
+  const callStateRef = useRef(callState)
+  callStateRef.current = callState
+
+  // Listen for incoming call signals
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = listenForSignals(user.id, async (signal: CallSignal) => {
+      if (signal.type === 'offer') {
+        if (callStateRef.current !== 'idle') {
+          sendSignal(signal.from, { type: 'missed', from: user.id, to: signal.from })
+          return
+        }
+        setIncomingCaller(signal.from)
+        pendingOfferRef.current = signal.sdp || null
+        setCallVideo(signal.sdp?.includes('m=video') || false)
+        setCallState('ringing')
+      } else if (signal.type === 'answer' && callStateRef.current === 'calling') {
+        const desc = new RTCSessionDescription({ type: 'answer', sdp: signal.sdp! })
+        await pcRef.current?.setRemoteDescription(desc)
+        setCallState('connected')
+      } else if (signal.type === 'ice-candidate' && pcRef.current) {
+        await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate!))
+      } else if (signal.type === 'end') {
+        endCallInternal()
+      } else if (signal.type === 'missed') {
+        setCallState('idle')
+      }
+    })
+    return () => { channel.unsubscribe() }
+  }, [user?.id])
 
   // Load custom theme from localStorage on mount
   useEffect(() => {
@@ -421,6 +473,117 @@ export default function ChatPage() {
     })
   }
 
+  // Ringtone + desktop notification for incoming calls
+  const prevCallState = useRef(callState)
+  useEffect(() => {
+    if (callState === 'ringing' && prevCallState.current !== 'ringing') {
+      startRingtone()
+      if (Notification.permission === 'granted') {
+        new Notification(`Incoming call from ${callRemoteName}`, {
+          body: callVideo ? 'Video call' : 'Voice call',
+          icon: '/android-chrome-192x192.png',
+        })
+      }
+    } else if (prevCallState.current === 'ringing' && callState !== 'ringing') {
+      stopRingtone()
+    }
+    prevCallState.current = callState
+  }, [callState, callRemoteName, callVideo])
+
+  function endCallInternal() {
+    pcRef.current?.close()
+    pcRef.current = null
+    cleanupMediaStream(localStreamRef.current)
+    localStreamRef.current = null
+    setRemoteStream(null)
+    setLocalStream(null)
+    setCallState('idle')
+    setIncomingCaller(null)
+    pendingOfferRef.current = null
+  }
+
+  async function startCall(video: boolean) {
+    if (!user?.id || !selectedConversation) return
+    const otherId = selectedConversation.participants!.find((id: string) => id !== user.id)
+    if (!otherId) return
+    setCallVideo(video)
+    setCallState('calling')
+    setCallRemoteName(getParticipantInfo(otherId).display_name)
+
+    try {
+      const stream = await getLocalStream(video)
+      localStreamRef.current = stream
+      setLocalStream(stream)
+
+      const pc = createPeerConnection(
+        (rs) => setRemoteStream(rs),
+        (candidate) => sendSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, candidate }),
+      )
+      pcRef.current = pc
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      sendSignal(otherId, { type: 'offer', from: user.id, to: otherId, sdp: offer.sdp! })
+    } catch (e) {
+      console.error('Call error:', e)
+      endCallInternal()
+    }
+  }
+
+  async function answerCall() {
+    if (!user?.id || !incomingCaller || !pendingOfferRef.current) return
+    setCallState('calling')
+    setCallRemoteName(getParticipantInfo(incomingCaller).display_name)
+
+    try {
+      const stream = await getLocalStream(callVideo)
+      localStreamRef.current = stream
+      setLocalStream(stream)
+
+      const pc = createPeerConnection(
+        (rs) => setRemoteStream(rs),
+        (candidate) => sendSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, candidate }),
+      )
+      pcRef.current = pc
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: pendingOfferRef.current }))
+      const answer = await pc.createAnswer()
+      await pc.setLocalDescription(answer)
+      sendSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, sdp: answer.sdp! })
+      setCallState('connected')
+    } catch (e) {
+      console.error('Answer error:', e)
+      endCallInternal()
+    }
+  }
+
+  function declineCall() {
+    if (!user?.id || !incomingCaller) return
+    sendSignal(incomingCaller, { type: 'end', from: user.id, to: incomingCaller })
+    setCallState('idle')
+    setIncomingCaller(null)
+    pendingOfferRef.current = null
+  }
+
+  function endCall() {
+    if (!user?.id) return
+    const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user.id)
+    if (target) sendSignal(target, { type: 'end', from: user.id, to: target })
+    endCallInternal()
+  }
+
+  function toggleMute() {
+    const stream = localStreamRef.current
+    if (!stream) return
+    const audio = stream.getAudioTracks()[0]
+    if (audio) {
+      audio.enabled = !audio.enabled
+      setCallMuted(!audio.enabled)
+    }
+  }
+
   const getConversationPreview = (conv: Conversation) => {
     const convParticipants = Array.isArray(conv.participants) ? conv.participants : []
     const convNames = Array.isArray(conv.participant_names) ? conv.participant_names : []
@@ -595,6 +758,7 @@ export default function ChatPage() {
           {/* Chat header */}
           <div className="bg-surface border-b border-subtle px-6 py-4 flex items-center justify-between gap-3">
             {activeTab === 'dm' && selectedConversation && (
+              <>
               <div className="flex items-center gap-3 min-w-0">
                 {selectedConversation.is_group && (
                   <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center shrink-0 shadow-sm">
@@ -616,6 +780,25 @@ export default function ChatPage() {
                   </p>
                 </div>
               </div>
+              {!selectedConversation.is_group && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => startCall(false)}
+                    className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
+                    title="Voice call">
+                    <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </button>
+                  <button onClick={() => startCall(true)}
+                    className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
+                    title="Video call">
+                    <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              </>
             )}
             {activeTab === 'dm' && !selectedConversation && (
               <p className="text-sm text-muted">Select a conversation</p>
@@ -856,6 +1039,22 @@ export default function ChatPage() {
 
       {/* Settings modal */}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
+      {/* Call UI */}
+      {callState !== 'idle' && (
+        <CallUI
+          callState={callState}
+          video={callVideo}
+          muted={callMuted}
+          remoteName={callRemoteName}
+          remoteStream={remoteStream}
+          localStream={localStream}
+          onAnswer={answerCall}
+          onDecline={declineCall}
+          onEnd={endCall}
+          onToggleMute={toggleMute}
+        />
+      )}
 
       {/* Profile modal */}
       {profilePreview && (
