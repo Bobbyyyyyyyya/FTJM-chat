@@ -15,18 +15,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: |
-              *.dmg
-              *.zip
             name: macOS
           - os: windows-latest
-            artifact: |
-              *.exe
             name: Windows
           - os: ubuntu-latest
-            artifact: |
-              *.AppImage
-              *.deb
             name: Linux
 
     steps:
@@ -85,7 +77,11 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            packages/main/release/${{ matrix.artifact }}
+            packages/main/release/*.dmg
+            packages/main/release/*.zip
+            packages/main/release/*.AppImage
+            packages/main/release/*.deb
+            packages/main/release/*.exe
             packages/main/release/*.blockmap
             packages/main/release/latest*.yml
           draft: false
