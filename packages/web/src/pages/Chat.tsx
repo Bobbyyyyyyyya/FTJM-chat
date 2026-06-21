@@ -59,6 +59,7 @@ export default function ChatPage() {
     id: string
     display_name: string
     photo_url?: string
+    banner_url?: string
     bio?: string
     isCurrentUser: boolean
   } | null>(null)
@@ -342,6 +343,7 @@ export default function ChatPage() {
         id: userId,
         display_name: p?.display_name || displayName || getParticipantInfo(userId).display_name,
         photo_url: p?.photo_url || photoUrl || getParticipantInfo(userId).photo_url,
+        banner_url: p?.banner_url,
         bio: p?.bio,
         isCurrentUser: userId === user?.id,
       })
@@ -352,6 +354,7 @@ export default function ChatPage() {
         id: userId,
         display_name: displayName || getParticipantInfo(userId).display_name,
         photo_url: photoUrl || getParticipantInfo(userId).photo_url,
+        banner_url: undefined,
         bio: undefined,
         isCurrentUser: userId === user?.id,
       })
@@ -591,7 +594,7 @@ export default function ChatPage() {
                             ) : getAvatarInitials(participant.display_name)}
                           </button>
                         )}
-                        <div className={`group max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
+                        <div className={`max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
                           <div className={`flex items-center gap-2 mb-0.5 ${isMine ? 'flex-row-reverse' : ''}`}>
                             <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? 'text-emerald-100' : 'text-muted'}`}>
                               {isMine ? 'You' : participant.display_name}
@@ -627,7 +630,7 @@ export default function ChatPage() {
                               <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
                                 <p className={`text-[10px] ${isMine ? 'text-emerald-200' : 'text-muted'}`}>{time}</p>
                                 {isMine && (
-                                  <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex gap-1.5">
                                     <button onClick={() => handleEditMessage(msg)}
                                       className="text-[10px] text-muted hover:text-primary transition-colors">
                                       Edit
@@ -684,7 +687,7 @@ export default function ChatPage() {
                     const authorName = isMine ? 'You' : authorInfo.display_name
                     const isEditing = editingId?.type === 'general' && editingId.id === post.id
                     return (
-                      <div key={post.id} className="group chat-bubble-other !rounded-3xl p-5">
+                      <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
                         <div className="flex items-center gap-3 mb-3">
                           <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
                             className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-emerald-300 transition-all">
@@ -778,15 +781,30 @@ export default function ChatPage() {
       {/* Profile modal */}
       {profilePreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/20 dark:bg-black/40 backdrop-blur-sm" onClick={closeProfile}>
-          <div className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 p-7 border border-subtle" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center text-2xl font-bold text-white shadow-sm">
+          <div className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-subtle overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Banner */}
+            {profilePreview.banner_url ? (
+              <div className="h-36 bg-cover bg-center" style={{ backgroundImage: `url(${profilePreview.banner_url})` }} />
+            ) : (
+              <div className="h-36 bg-gradient-to-br from-emerald-400 to-teal-400" />
+            )}
+
+            {/* Close button */}
+            <button onClick={closeProfile} className="absolute top-3 right-3 rounded-xl bg-black/20 p-2 text-white hover:bg-black/40 transition-all">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Content */}
+            <div className="px-7 pb-7 -mt-12">
+              <div className="flex items-end gap-4">
+                <div className="h-20 w-20 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center text-3xl font-bold text-white shadow-lg ring-4 ring-surface shrink-0">
                   {profilePreview.photo_url ? (
                     <img src={profilePreview.photo_url} alt={profilePreview.display_name} className="h-full w-full object-cover" />
                   ) : getAvatarInitials(profilePreview.display_name)}
                 </div>
-                <div>
+                <div className="pb-1">
                   <p className="text-lg font-bold text-primary">{profilePreview.display_name}</p>
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium inline-block mt-1 ${
                     profilePreview.isCurrentUser ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-surface-muted text-secondary'
@@ -795,24 +813,20 @@ export default function ChatPage() {
                   </span>
                 </div>
               </div>
-              <button onClick={closeProfile} className="rounded-xl bg-surface-muted p-2 text-muted hover:bg-surface-hover hover:text-secondary transition-all">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-5 pt-5 border-t border-subtle">
-              <p className="text-sm text-secondary leading-relaxed">
-                {profilePreview.bio || <span className="text-muted italic">No profile bio available.</span>}
-              </p>
-              {!profilePreview.isCurrentUser && (
-                <p className="text-xs text-muted flex items-center gap-2 mt-3">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  Private profile — limited info available.
+
+              <div className="mt-5 pt-5 border-t border-subtle">
+                <p className="text-sm text-secondary leading-relaxed">
+                  {profilePreview.bio || <span className="text-muted italic">No profile bio available.</span>}
                 </p>
-              )}
+                {!profilePreview.isCurrentUser && (
+                  <p className="text-xs text-muted flex items-center gap-2 mt-3">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Private profile — limited info available.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>

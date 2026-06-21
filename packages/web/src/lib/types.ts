@@ -18,6 +18,7 @@ export interface Profile {
   bio?: string | null
   bio_locked_until?: string | null
   photo_url?: string | null
+  banner_url?: string | null
   notification_settings?: {
     sound?: boolean
     desktop?: boolean
