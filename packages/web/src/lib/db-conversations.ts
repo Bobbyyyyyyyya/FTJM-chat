@@ -136,6 +136,32 @@ export async function sendMessage(
   return data as Message
 }
 
+// Update own message text
+export async function updateMessage(
+  messageId: string,
+  text: string,
+  isEncrypted = false,
+  iv?: string
+) {
+  const { data, error } = await supabase
+    .from('messages')
+    .update({
+      text,
+      is_encrypted: isEncrypted,
+      iv,
+    })
+    .eq('id', messageId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('❌ Error updating message:', error)
+    throw error
+  }
+
+  return data as Message
+}
+
 // Delete a message (soft delete)
 export async function deleteMessage(messageId: string) {
   const { data, error } = await supabase

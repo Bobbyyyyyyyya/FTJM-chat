@@ -22,8 +22,10 @@ win:
     - portable
 linux:
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
   category: Utility
   maintainer: "FTJM Team <team@ftjm.chat>"
   artifactName: "FTJM-Chat_${version}_${arch}.${ext}"

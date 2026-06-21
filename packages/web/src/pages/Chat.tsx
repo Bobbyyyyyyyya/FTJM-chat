@@ -4,11 +4,15 @@ import {
   getConversations,
   getConversation,
   sendMessage,
+  updateMessage,
+  deleteMessage,
   createConversation,
   setTypingStatus,
   getTypingStatus,
   getPosts,
   createPost,
+  updatePost,
+  deletePost,
   subscribeToMessages,
   subscribeToTypingStatus,
   subscribeToGeneralChat,
@@ -59,6 +63,9 @@ export default function ChatPage() {
     isCurrentUser: boolean
   } | null>(null)
   const [profilesCache, setProfilesCache] = useState<Record<string, any>>({})
+
+  const [editingId, setEditingId] = useState<{type: 'dm' | 'general', id: string} | null>(null)
+  const [editingValue, setEditingValue] = useState('')
 
   useEffect(() => {
     const loadConversations = async () => {
@@ -176,7 +183,11 @@ export default function ChatPage() {
           if (payload.type === 'INSERT' && payload.new) {
             setMessages((prev) => [...prev, payload.new!])
           } else if (payload.type === 'UPDATE' && payload.new) {
-            setMessages((prev) => prev.map((m) => (m.id === payload.new!.id ? payload.new! : m)))
+            if ((payload.new as any).deleted_at) {
+              setMessages((prev) => prev.filter((m) => m.id !== payload.new!.id))
+            } else {
+              setMessages((prev) => prev.map((m) => (m.id === payload.new!.id ? payload.new! : m)))
+            }
           } else if (payload.type === 'DELETE' && payload.old) {
             setMessages((prev) => prev.filter((m) => m.id !== payload.old!.id))
           }
@@ -239,6 +250,59 @@ export default function ChatPage() {
       await setTypingStatus(selectedConvId, user.id, typing)
     } catch (error) {
       console.error('Error updating typing status:', error)
+    }
+  }
+
+  const handleEditMessage = (msg: Message) => {
+    setEditingId({ type: 'dm', id: msg.id })
+    setEditingValue(maybeDecryptText(msg.text, msg.is_encrypted))
+  }
+
+  const handleEditPost = (post: Post) => {
+    setEditingId({ type: 'general', id: post.id })
+    setEditingValue(maybeDecryptText(post.content))
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editingValue.trim()) return
+    try {
+      const encryptedText = encryptText(editingValue)
+      if (editingId.type === 'dm') {
+        const updated = await updateMessage(editingId.id, encryptedText, true)
+        setMessages((prev) => prev.map((m) => (m.id === editingId.id ? updated : m)))
+      } else {
+        const updated = await updatePost(editingId.id, encryptedText)
+        setGeneralChat((prev) => prev.map((p) => (p.id === editingId.id ? updated : p)))
+      }
+      setEditingId(null)
+      setEditingValue('')
+    } catch (error) {
+      console.error('Error saving edit:', error)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditingValue('')
+  }
+
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!window.confirm('Delete this message?')) return
+    try {
+      await deleteMessage(msgId)
+      setMessages((prev) => prev.filter((m) => m.id !== msgId))
+    } catch (error) {
+      console.error('Error deleting message:', error)
+    }
+  }
+
+  const handleDeletePost = async (postId: string) => {
+    if (!window.confirm('Delete this post?')) return
+    try {
+      await deletePost(postId)
+      setGeneralChat((prev) => prev.filter((p) => p.id !== postId))
+    } catch (error) {
+      console.error('Error deleting post:', error)
     }
   }
 
@@ -516,6 +580,7 @@ export default function ChatPage() {
                     const isMine = msg.sender_id === user?.id
                     const participant = getParticipantInfo(msg.sender_id)
                     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    const isEditing = editingId?.type === 'dm' && editingId.id === msg.id
                     return (
                       <div key={msg.id} className={`flex gap-3 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
                         {!isMine && (
@@ -526,17 +591,56 @@ export default function ChatPage() {
                             ) : getAvatarInitials(participant.display_name)}
                           </button>
                         )}
-                        <div className={`max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
+                        <div className={`group max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
                           <div className={`flex items-center gap-2 mb-0.5 ${isMine ? 'flex-row-reverse' : ''}`}>
                             <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? 'text-emerald-100' : 'text-muted'}`}>
                               {isMine ? 'You' : participant.display_name}
                             </span>
                           </div>
-                          <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
-                            <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                          </div>
-                          <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                          <p className={`text-[10px] mt-1 ${isMine ? 'text-emerald-200' : 'text-muted'}`}>{time}</p>
+                          {isEditing ? (
+                            <div className="flex flex-col gap-2">
+                              <input
+                                type="text"
+                                value={editingValue}
+                                onChange={(e) => setEditingValue(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit() }}
+                                className="input-field !py-1.5 !text-sm"
+                                autoFocus
+                              />
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={handleSaveEdit}
+                                  className="text-[11px] px-3 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors">
+                                  Save
+                                </button>
+                                <button onClick={handleCancelEdit}
+                                  className="text-[11px] px-3 py-1 rounded-lg bg-surface-muted text-secondary hover:bg-surface-hover font-medium transition-colors">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
+                                <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
+                              </div>
+                              <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
+                              <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
+                                <p className={`text-[10px] ${isMine ? 'text-emerald-200' : 'text-muted'}`}>{time}</p>
+                                {isMine && (
+                                  <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEditMessage(msg)}
+                                      className="text-[10px] text-muted hover:text-primary transition-colors">
+                                      Edit
+                                    </button>
+                                    <button onClick={() => handleDeleteMessage(msg.id)}
+                                      className="text-[10px] text-muted hover:text-red-400 transition-colors">
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                         {isMine && (
                           <button onClick={() => openProfile(msg.sender_id, user?.display_name ?? undefined, user?.photo_url ?? undefined)}
@@ -578,8 +682,9 @@ export default function ChatPage() {
                     const isMine = post.author_id === user?.id
                     const authorInfo = getParticipantInfo(post.author_id)
                     const authorName = isMine ? 'You' : authorInfo.display_name
+                    const isEditing = editingId?.type === 'general' && editingId.id === post.id
                     return (
-                      <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
+                      <div key={post.id} className="group chat-bubble-other !rounded-3xl p-5">
                         <div className="flex items-center gap-3 mb-3">
                           <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
                             className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-emerald-300 transition-all">
@@ -587,15 +692,54 @@ export default function ChatPage() {
                               <img src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
                             ) : getAvatarInitials(authorName)}
                           </button>
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-semibold text-primary">{authorName}</p>
-                            <p className="text-[11px] text-muted">{new Date(post.created_at).toLocaleString()}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[11px] text-muted">{new Date(post.created_at).toLocaleString()}</p>
+                              {isMine && (
+                                <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => handleEditPost(post)}
+                                    className="text-[10px] text-muted hover:text-primary transition-colors">
+                                    Edit
+                                  </button>
+                                  <button onClick={() => handleDeletePost(post.id)}
+                                    className="text-[10px] text-muted hover:text-red-400 transition-colors">
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
-                          <LinkifyText text={maybeDecryptText(post.content)} />
-                        </div>
-                        <MessageEmbeds text={maybeDecryptText(post.content)} />
+                        {isEditing ? (
+                          <div className="flex flex-col gap-2">
+                            <input
+                              type="text"
+                              value={editingValue}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit() }}
+                              className="input-field !py-1.5 !text-sm"
+                              autoFocus
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={handleSaveEdit}
+                                className="text-[11px] px-3 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors">
+                                Save
+                              </button>
+                              <button onClick={handleCancelEdit}
+                                className="text-[11px] px-3 py-1 rounded-lg bg-surface-muted text-secondary hover:bg-surface-hover font-medium transition-colors">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
+                              <LinkifyText text={maybeDecryptText(post.content)} />
+                            </div>
+                            <MessageEmbeds text={maybeDecryptText(post.content)} />
+                          </>
+                        )}
                       </div>
                     )
                   })
