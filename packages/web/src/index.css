@@ -111,8 +111,12 @@
     background-color: rgb(var(--surface));
     border: 1px solid rgb(var(--border));
     color: rgb(var(--text));
-    @apply w-full px-5 py-3.5 rounded-2xl placeholder-gray-400
-           focus:outline-none focus:ring-2 focus:ring-accent\/30 focus:border-accent transition-all duration-200;
+    @apply w-full px-5 py-3.5 rounded-2xl placeholder-gray-400 transition-all duration-200;
+    outline: none;
+  }
+  .input-field:focus {
+    border-color: rgb(var(--accent-rgb));
+    box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.3);
   }
 
   .btn-send {
