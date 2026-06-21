@@ -48,13 +48,16 @@ const DEFAULT_THEME: CustomTheme = {
   agreed_terms_v2: false,
 }
 
+const THEME_STORAGE_KEY = 'ftjm_custom_theme'
+const THEME_ENABLED_KEY = 'ftjm_custom_theme_enabled'
+
 function hexToRgb(hex: string): string {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return ''
   return `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}`
 }
 
-function applyCustomTheme(t: CustomTheme) {
+export function applyCustomTheme(t: CustomTheme) {
   const root = document.documentElement
   if (t.body_bg_color) root.style.setProperty('--body', hexToRgb(t.body_bg_color))
   if (t.card_bg_color) root.style.setProperty('--surface', hexToRgb(t.card_bg_color))
@@ -67,10 +70,17 @@ function applyCustomTheme(t: CustomTheme) {
   if (t.secondary_color) {
     root.style.setProperty('--text-secondary', hexToRgb(t.secondary_color))
     root.style.setProperty('--text-muted', hexToRgb(t.secondary_color))
+    root.style.setProperty('--accent-hover-rgb', hexToRgb(t.secondary_color))
+    root.style.setProperty('--accent-to-rgb', hexToRgb(t.secondary_color))
   }
   if (t.accent_color) {
     root.style.setProperty('--border', hexToRgb(t.accent_color))
     root.style.setProperty('--border-subtle', hexToRgb(t.accent_color))
+    root.style.setProperty('--accent-ring-rgb', hexToRgb(t.accent_color))
+  }
+  if (t.primary_color) {
+    root.style.setProperty('--accent-rgb', hexToRgb(t.primary_color))
+    root.style.setProperty('--accent-from-rgb', hexToRgb(t.primary_color))
   }
   if (t.wallpaper) {
     document.body.style.backgroundImage = `url(${t.wallpaper})`
@@ -88,9 +98,9 @@ function applyCustomTheme(t: CustomTheme) {
   if (t.profile_card_opacity) root.style.setProperty('--profile-opacity', `${t.profile_card_opacity / 100}`)
 }
 
-function clearCustomTheme() {
+export function clearCustomTheme() {
   const root = document.documentElement
-  const vars = ['--body', '--surface', '--surface-muted', '--text', '--text-secondary', '--text-muted', '--border', '--border-subtle', '--glass-bg', '--glass-blur', '--custom-radius', '--chat-opacity', '--profile-opacity']
+  const vars = ['--body', '--surface', '--surface-muted', '--text', '--text-secondary', '--text-muted', '--border', '--border-subtle', '--glass-bg', '--glass-blur', '--custom-radius', '--chat-opacity', '--profile-opacity', '--accent-rgb', '--accent-hover-rgb', '--accent-ring-rgb', '--accent-from-rgb', '--accent-to-rgb']
   vars.forEach((v) => root.style.removeProperty(v))
   root.style.fontFamily = ''
   document.body.style.backgroundImage = ''
@@ -115,13 +125,16 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
       }
       setUseCustomTheme(p.use_custom_theme || false)
       if (p.custom_theme) {
-        setTheme({ ...DEFAULT_THEME, ...p.custom_theme as any })
-        applyCustomTheme({ ...DEFAULT_THEME, ...p.custom_theme as any })
+        const merged = { ...DEFAULT_THEME, ...p.custom_theme as any }
+        setTheme(merged)
+        if (p.use_custom_theme) applyCustomTheme(merged)
+        localStorage.setItem(THEME_ENABLED_KEY, String(p.use_custom_theme))
+        localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(merged))
       }
       setDesktopNotif(Notification.permission === 'granted')
     }
     load()
-    return () => clearCustomTheme()
+    return () => {}
   }, [isOpen, user?.id])
 
   const requestDesktopNotif = async () => {
@@ -135,8 +148,12 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
     try {
       if (useCustomTheme) {
         applyCustomTheme(theme)
+        localStorage.setItem(THEME_ENABLED_KEY, 'true')
+        localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(theme))
       } else {
         clearCustomTheme()
+        localStorage.setItem(THEME_ENABLED_KEY, 'false')
+        localStorage.removeItem(THEME_STORAGE_KEY)
       }
       await updateProfile({
         notification_settings: notif as any,
@@ -180,13 +197,13 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
         <div className="flex gap-2 px-6 pb-4 border-b border-subtle">
           <button onClick={() => setTab('notifications')}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              tab === 'notifications' ? 'bg-emerald-500 text-white shadow-sm' : 'text-secondary hover:bg-surface-hover'
+              tab === 'notifications' ? 'bg-accent text-accent-content shadow-sm' : 'text-secondary hover:bg-surface-hover'
             }`}>
             Notifications
           </button>
           <button onClick={() => setTab('theme')}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              tab === 'theme' ? 'bg-emerald-500 text-white shadow-sm' : 'text-secondary hover:bg-surface-hover'
+              tab === 'theme' ? 'bg-accent text-accent-content shadow-sm' : 'text-secondary hover:bg-surface-hover'
             }`}>
             Custom Theme
           </button>
@@ -202,7 +219,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                   <span className="text-sm text-secondary">Push notifications (outside the app)</span>
                   <button onClick={requestDesktopNotif}
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                      desktopNotif ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
+                      desktopNotif ? 'bg-accent/10 text-accent' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
                     }`}>
                     {desktopNotif ? 'Enabled' : 'Enable'}
                   </button>
@@ -229,7 +246,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-primary">Enable custom theme</span>
                 <button onClick={() => { setUseCustomTheme(!useCustomTheme); if (!useCustomTheme) applyCustomTheme(theme); else clearCustomTheme() }}
-                  className={`w-10 h-5 rounded-full transition-all relative ${useCustomTheme ? 'bg-emerald-500' : 'bg-surface-muted border border-subtle'}`}>
+                  className={`w-10 h-5 rounded-full transition-all relative ${useCustomTheme ? 'bg-accent' : 'bg-surface-muted border border-subtle'}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${useCustomTheme ? 'left-5' : 'left-0.5'}`} />
                 </button>
               </div>
@@ -289,7 +306,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                   <div className="flex items-center gap-2 pt-2">
                     <input type="checkbox" id="terms" checked={theme.agreed_terms_v2 || false}
                       onChange={(e) => setThemeField('agreed_terms_v2', e.target.checked)}
-                      className="rounded border-subtle text-emerald-500 focus:ring-emerald-400" />
+                      className="rounded border-subtle text-accent focus:ring-accent" />
                     <label htmlFor="terms" className="text-xs text-secondary">I agree to the terms v2</label>
                   </div>
 
@@ -310,7 +327,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="px-5 py-2 rounded-xl text-sm font-medium bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 transition-all">
+            className="px-5 py-2 rounded-xl text-sm font-medium bg-accent text-accent-content hover:bg-accent-hover disabled:opacity-50 transition-all">
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
@@ -333,7 +350,7 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-secondary">{label}</span>
       <button onClick={() => onChange(!value)}
-        className={`w-10 h-5 rounded-full transition-all relative ${value ? 'bg-emerald-500' : 'bg-surface-muted border border-subtle'}`}>
+        className={`w-10 h-5 rounded-full transition-all relative ${value ? 'bg-accent' : 'bg-surface-muted border border-subtle'}`}>
         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${value ? 'left-5' : 'left-0.5'}`} />
       </button>
     </div>
@@ -381,7 +398,7 @@ function RangeInput({ label, value, min, max, onChange }: { label: string; value
       <span className="text-xs text-secondary w-28 shrink-0">{label}</span>
       <input type="range" value={value} min={min} max={max}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-emerald-500 h-1.5" />
+        className="flex-1 accent-accent h-1.5" />
       <span className="text-xs text-muted w-8 text-right">{value}</span>
     </div>
   )
@@ -391,7 +408,7 @@ function PatternBtn({ label, value, current, onClick }: { label: string; value: 
   return (
     <button onClick={() => onClick(value)}
       className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
-        current === value ? 'bg-emerald-500 text-white shadow-sm' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
+        current === value ? 'bg-accent text-accent-content shadow-sm' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
       }`}>
       {label}
     </button>

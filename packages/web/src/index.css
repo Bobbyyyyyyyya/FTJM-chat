@@ -13,6 +13,13 @@
     --text-muted: 156 163 175;
     --border: 229 231 235;
     --border-subtle: 243 244 246;
+
+    --accent-rgb: 16 185 129;
+    --accent-hover-rgb: 5 150 105;
+    --accent-light-rgb: 236 253 245;
+    --accent-ring-rgb: 52 211 153;
+    --accent-from-rgb: 52 211 153;
+    --accent-to-rgb: 45 212 191;
   }
 
   .dark {
@@ -67,7 +74,9 @@
 
   /* Chat bubbles */
   .chat-bubble-mine {
-    @apply bg-emerald-500 text-white rounded-2xl rounded-br-md shadow-sm;
+    @apply rounded-2xl rounded-br-md shadow-sm;
+    background-color: rgb(var(--accent-rgb));
+    color: rgb(255 255 255);
   }
   .chat-bubble-other {
     background-color: rgb(var(--surface));
@@ -81,13 +90,13 @@
   }
   .sidebar-item-active {
     @apply border shadow-sm;
-    background-color: rgb(236 253 245);
-    border-color: rgb(167 243 208);
+    background-color: rgb(var(--accent-light-rgb));
+    border-color: rgb(var(--accent-ring-rgb) / 0.4);
     color: rgb(var(--text));
   }
   .dark .sidebar-item-active {
-    background-color: rgb(6 78 59 / 0.2);
-    border-color: rgb(6 95 70 / 0.3);
+    background-color: rgb(var(--accent-rgb) / 0.2);
+    border-color: rgb(var(--accent-hover-rgb) / 0.3);
   }
   .sidebar-item-inactive {
     border-color: transparent;
@@ -103,13 +112,17 @@
     border: 1px solid rgb(var(--border));
     color: rgb(var(--text));
     @apply w-full px-5 py-3.5 rounded-2xl placeholder-gray-400
-           focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 transition-all duration-200;
+           focus:outline-none focus:ring-2 focus:ring-accent\/30 focus:border-accent transition-all duration-200;
   }
 
   .btn-send {
-    @apply px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95
+    @apply px-6 py-3.5 active:scale-95
            text-white font-semibold rounded-2xl transition-all duration-200
            flex items-center gap-2 shadow-sm;
+    background-color: rgb(var(--accent-rgb));
+  }
+  .btn-send:hover {
+    background-color: rgb(var(--accent-hover-rgb));
   }
   .btn-send:disabled {
     @apply shadow-none active:scale-100;
@@ -118,7 +131,8 @@
   }
 
   .tab-btn-active {
-    @apply bg-emerald-500 text-white shadow-sm;
+    @apply text-white shadow-sm;
+    background-color: rgb(var(--accent-rgb));
   }
   .tab-btn-inactive {
     color: rgb(var(--text-secondary));
@@ -131,4 +145,24 @@
   .card-hover {
     @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
   }
+
+  /* Accent utility classes */
+  .bg-accent { background-color: rgb(var(--accent-rgb)); }
+  .hover\:bg-accent-hover:hover { background-color: rgb(var(--accent-hover-rgb)); }
+  .text-accent { color: rgb(var(--accent-rgb)); }
+  .text-accent-content { color: rgb(255 255 255); }
+  .ring-accent { --tw-ring-color: rgb(var(--accent-ring-rgb)); }
+  .hover\:ring-accent:hover { --tw-ring-color: rgb(var(--accent-ring-rgb)); }
+  .border-accent { border-color: rgb(var(--accent-rgb)); }
+  .focus\:border-accent:focus { border-color: rgb(var(--accent-rgb)); }
+  .focus\:ring-accent\/30:focus { --tw-ring-color: rgb(var(--accent-rgb) / 0.3); }
+  .bg-accent\/10 { background-color: rgb(var(--accent-rgb) / 0.1); }
+  .bg-accent\/20 { background-color: rgb(var(--accent-rgb) / 0.2); }
+  .bg-gradient-accent {
+    background-image: linear-gradient(to bottom right, rgb(var(--accent-from-rgb)), rgb(var(--accent-to-rgb)));
+  }
+  .accent-accent { accent-color: rgb(var(--accent-rgb)); }
+  .dark\:text-accent-ring { color: rgb(var(--accent-ring-rgb)); }
+  .dark\:bg-accent\/20 { background-color: rgb(var(--accent-rgb) / 0.2); }
+  .dark\:border-accent-muted { border-color: rgb(var(--accent-hover-rgb) / 0.3); }
 }

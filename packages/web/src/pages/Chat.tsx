@@ -23,7 +23,7 @@ import {
 } from '@/lib/db'
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText } from '@/components/EmbedCard'
-import SettingsModal from '@/components/SettingsModal'
+import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -69,6 +69,36 @@ export default function ChatPage() {
   const [editingId, setEditingId] = useState<{type: 'dm' | 'general', id: string} | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [myProfile, setMyProfile] = useState<any>(null)
+
+  // Load custom theme from localStorage on mount
+  useEffect(() => {
+    if (localStorage.getItem('ftjm_custom_theme_enabled') === 'true') {
+      const saved = localStorage.getItem('ftjm_custom_theme')
+      if (saved) {
+        try {
+          applyCustomTheme(JSON.parse(saved))
+        } catch (e) {
+          console.error('Error parsing saved theme:', e)
+        }
+      }
+    }
+  }, [])
+
+  // Load profile for theme + notifications
+  useEffect(() => {
+    if (!user?.id) return
+    getProfile(user.id).then((p) => {
+      if (!p) return
+      setMyProfile(p)
+      if (p.use_custom_theme && p.custom_theme) {
+        const merged = { ...p.custom_theme as any }
+        applyCustomTheme(merged)
+        localStorage.setItem('ftjm_custom_theme_enabled', 'true')
+        localStorage.setItem('ftjm_custom_theme', JSON.stringify(merged))
+      }
+    })
+  }, [user?.id])
 
   useEffect(() => {
     const loadConversations = async () => {
@@ -136,6 +166,9 @@ export default function ChatPage() {
       if (payload.type === 'INSERT' && payload.new) {
         const newPost = payload.new
         setGeneralChat((prev) => [newPost, ...prev])
+        if (newPost.author_id !== user?.id) {
+          sendDesktopNotification('New post in General', maybeDecryptText(newPost.content), 'post')
+        }
         if (!profilesCache[newPost.author_id]) {
           getProfile(newPost.author_id).then((p) => {
             if (p) setProfilesCache((prev) => ({ ...prev, [newPost.author_id]: p }))
@@ -184,7 +217,12 @@ export default function ChatPage() {
 
         subscription = subscribeToMessages(selectedConvId, (payload) => {
           if (payload.type === 'INSERT' && payload.new) {
-            setMessages((prev) => [...prev, payload.new!])
+            const newMsg = payload.new!
+            setMessages((prev) => [...prev, newMsg])
+            if (newMsg.sender_id !== user?.id) {
+              const sender = getParticipantInfo(newMsg.sender_id)
+              sendDesktopNotification(sender.display_name, maybeDecryptText(newMsg.text, newMsg.is_encrypted), 'dm')
+            }
           } else if (payload.type === 'UPDATE' && payload.new) {
             if ((payload.new as any).deleted_at) {
               setMessages((prev) => prev.filter((m) => m.id !== payload.new!.id))
@@ -371,6 +409,18 @@ export default function ChatPage() {
 
   const closeProfile = () => setProfilePreview(null)
 
+  function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
+    if (Notification.permission !== 'granted') return
+    if (!myProfile?.notification_settings) return
+    const ns = myProfile.notification_settings as any
+    if (type === 'dm' && !ns.notify_new_messages) return
+    if (type === 'post' && !ns.notify_new_posts) return
+    new Notification(title, {
+      body: body.slice(0, 200),
+      icon: '/android-chrome-192x192.png',
+    })
+  }
+
   const getConversationPreview = (conv: Conversation) => {
     const convParticipants = Array.isArray(conv.participants) ? conv.participants : []
     const convNames = Array.isArray(conv.participant_names) ? conv.participant_names : []
@@ -405,7 +455,7 @@ export default function ChatPage() {
       {/* Header */}
       <header className="bg-surface border-b border-surface px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center shadow-sm">
+          <div className="h-9 w-9 rounded-xl bg-gradient-accent flex items-center justify-center shadow-sm">
             <span className="text-base font-bold text-white">F</span>
           </div>
           <div>
@@ -415,7 +465,7 @@ export default function ChatPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5 bg-surface-muted rounded-xl px-3.5 py-2 border-subtle">
-            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center text-[10px] font-bold text-white">
+            <div className="h-7 w-7 rounded-full bg-gradient-accent flex items-center justify-center text-[10px] font-bold text-white">
               {getAvatarInitials(user?.display_name || 'U')}
             </div>
             <span className="text-sm font-medium text-primary">{user?.display_name}</span>
@@ -493,7 +543,7 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       <div className={`h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                        isSelected ? 'bg-gradient-to-br from-emerald-400 to-teal-400 shadow-sm' : 'bg-surface-hover text-secondary'
+                        isSelected ? 'bg-gradient-accent shadow-sm' : 'bg-surface-hover text-secondary'
                       }`}>
                         {preview.photo_url ? (
                           <img src={preview.photo_url} alt={preview.display_name} className="h-full w-full object-cover" />
@@ -506,7 +556,7 @@ export default function ChatPage() {
                       <p className={`text-sm font-semibold truncate ${isSelected ? '' : ''}`}>
                         {preview.display_name}
                       </p>
-                      <p className={`text-xs mt-0.5 ${isSelected ? (isGroup ? 'text-amber-600' : 'text-emerald-600') : ''}`}>
+                      <p className={`text-xs mt-0.5 ${isSelected ? (isGroup ? 'text-amber-600' : 'text-accent') : ''}`}>
                         {isGroup ? 'Group' : 'Direct message'}
                       </p>
                     </div>
@@ -573,7 +623,7 @@ export default function ChatPage() {
             {activeTab === 'general' && (
               <>
                 <p className="text-sm text-primary font-medium">General Chat</p>
-                <span className="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 shrink-0">
+                <span className="text-[10px] uppercase tracking-wider text-accent font-semibold bg-accent/10 px-3 py-1.5 rounded-full border border-accent/20 shrink-0">
                   Live room
                 </span>
               </>
@@ -600,7 +650,7 @@ export default function ChatPage() {
                       <div key={msg.id} className={`flex gap-3 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
                         {!isMine && (
                           <button onClick={() => openProfile(msg.sender_id, participant.display_name, participant.photo_url)}
-                            className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-emerald-300 transition-all">
+                            className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
                             {participant.photo_url ? (
                               <img src={participant.photo_url} alt={participant.display_name} className="h-full w-full object-cover" />
                             ) : getAvatarInitials(participant.display_name)}
@@ -608,7 +658,7 @@ export default function ChatPage() {
                         )}
                         <div className={`max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
                           <div className={`flex items-center gap-2 mb-0.5 ${isMine ? 'flex-row-reverse' : ''}`}>
-                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? 'text-emerald-100' : 'text-muted'}`}>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? 'text-white/80' : 'text-muted'}`}>
                               {isMine ? 'You' : participant.display_name}
                             </span>
                           </div>
@@ -624,7 +674,7 @@ export default function ChatPage() {
                               />
                               <div className="flex gap-2 justify-end">
                                 <button onClick={handleSaveEdit}
-                                  className="text-[11px] px-3 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors">
+                                  className="text-[11px] px-3 py-1 rounded-lg bg-accent text-accent-content hover:bg-accent-hover font-medium transition-colors">
                                   Save
                                 </button>
                                 <button onClick={handleCancelEdit}
@@ -640,7 +690,7 @@ export default function ChatPage() {
                               </div>
                               <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                               <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
-                                <p className={`text-[10px] ${isMine ? 'text-emerald-200' : 'text-muted'}`}>{time}</p>
+                                <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-muted'}`}>{time}</p>
                                 {isMine && (
                                   <div className="flex gap-1.5">
                                     <button onClick={() => handleEditMessage(msg)}
@@ -665,7 +715,7 @@ export default function ChatPage() {
                         </div>
                         {isMine && (
                           <button onClick={() => openProfile(msg.sender_id, user?.display_name ?? undefined, user?.photo_url ?? undefined)}
-                            className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-emerald-300 transition-all">
+                            className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
                             {user?.photo_url ? (
                               <img src={user.photo_url} alt={user.display_name ?? ''} className="h-full w-full object-cover" />
                             ) : getAvatarInitials(user?.display_name || 'You')}
@@ -708,7 +758,7 @@ export default function ChatPage() {
                       <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
                         <div className="flex items-center gap-3 mb-3">
                           <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
-                            className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-emerald-300 transition-all">
+                            className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
                             {authorInfo.photo_url ? (
                               <img src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
                             ) : getAvatarInitials(authorName)}
@@ -750,7 +800,7 @@ export default function ChatPage() {
                             />
                             <div className="flex gap-2 justify-end">
                               <button onClick={handleSaveEdit}
-                                className="text-[11px] px-3 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors">
+                                className="text-[11px] px-3 py-1 rounded-lg bg-accent text-accent-content hover:bg-accent-hover font-medium transition-colors">
                                 Save
                               </button>
                               <button onClick={handleCancelEdit}
@@ -813,7 +863,7 @@ export default function ChatPage() {
             {profilePreview.banner_url ? (
               <div className="h-36 bg-cover bg-center" style={{ backgroundImage: `url(${profilePreview.banner_url})` }} />
             ) : (
-              <div className="h-36 bg-gradient-to-br from-emerald-400 to-teal-400" />
+              <div className="h-36 bg-gradient-accent" />
             )}
 
             {/* Close button */}
@@ -826,7 +876,7 @@ export default function ChatPage() {
             {/* Content */}
             <div className="px-7 pb-7 -mt-12">
               <div className="flex items-end gap-4">
-                <div className="h-20 w-20 rounded-full overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center text-3xl font-bold text-white shadow-lg ring-4 ring-surface shrink-0">
+                <div className="h-20 w-20 rounded-full overflow-hidden bg-gradient-accent flex items-center justify-center text-3xl font-bold text-white shadow-lg ring-4 ring-surface shrink-0">
                   {profilePreview.photo_url ? (
                     <img src={profilePreview.photo_url} alt={profilePreview.display_name} className="h-full w-full object-cover" />
                   ) : getAvatarInitials(profilePreview.display_name)}
@@ -834,7 +884,7 @@ export default function ChatPage() {
                 <div className="pb-1">
                   <p className="text-lg font-bold text-primary">{profilePreview.display_name}</p>
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium inline-block mt-1 ${
-                    profilePreview.isCurrentUser ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-surface-muted text-secondary'
+                    profilePreview.isCurrentUser ? 'bg-accent/10 text-accent' : 'bg-surface-muted text-secondary'
                   }`}>
                     {profilePreview.isCurrentUser ? 'You' : 'User'}
                   </span>
