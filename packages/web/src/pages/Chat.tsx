@@ -22,7 +22,7 @@ import {
   type Post,
 } from '@/lib/db'
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
-import { MessageEmbeds, LinkifyText } from '@/components/EmbedCard'
+import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
 import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
 
 function useTheme() {
@@ -688,6 +688,7 @@ export default function ChatPage() {
                               <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
                                 <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                               </div>
+                              <DataUriMedia text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                               <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                               <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
                                 <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-muted'}`}>{time}</p>
@@ -814,6 +815,7 @@ export default function ChatPage() {
                             <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
                               <LinkifyText text={maybeDecryptText(post.content)} />
                             </div>
+                            <DataUriMedia text={maybeDecryptText(post.content)} />
                             <MessageEmbeds text={maybeDecryptText(post.content)} />
                           </>
                         )}

@@ -40,6 +40,31 @@ export function MessageEmbeds({ text }: { text: string }) {
   )
 }
 
+const DATA_URI_REGEX = /(data:(image|audio)\/[a-z+]+;base64,[A-Za-z0-9+/=]+)/g
+
+export function DataUriMedia({ text }: { text: string }) {
+  const parts = text.split(DATA_URI_REGEX)
+  const matches: { uri: string; type: 'image' | 'audio' }[] = []
+  let m: RegExpExecArray | null
+  const re = new RegExp(DATA_URI_REGEX.source, 'g')
+  while ((m = re.exec(text)) !== null) {
+    matches.push({ uri: m[1], type: m[2] as 'image' | 'audio' })
+  }
+  if (matches.length === 0) return null
+
+  return (
+    <>
+      {matches.map((m, i) =>
+        m.type === 'image' ? (
+          <img key={i} src={m.uri} alt="Base64 image" className="mt-2 max-w-full rounded-xl max-h-96 object-contain bg-surface-muted" loading="lazy" />
+        ) : (
+          <audio key={i} src={m.uri} controls className="mt-2 w-full max-w-md" />
+        )
+      )}
+    </>
+  )
+}
+
 function SingleEmbed({ url }: { url: string }) {
   const [embed, setEmbed] = useState<EmbedData | null>(null)
 
