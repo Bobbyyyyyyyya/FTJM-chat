@@ -40,15 +40,18 @@ export function MessageEmbeds({ text }: { text: string }) {
   )
 }
 
-const DATA_URI_REGEX = /(data:(image|audio)\/[a-z+]+;base64,[A-Za-z0-9+/=]+)/g
+const DATA_URI_REGEX = /data:(image|audio)\/[a-z0-9+.-]+;base64,[A-Za-z0-9+/=_-]+/gi
 
 export function DataUriMedia({ text }: { text: string }) {
-  const parts = text.split(DATA_URI_REGEX)
   const matches: { uri: string; type: 'image' | 'audio' }[] = []
+  const re = new RegExp(DATA_URI_REGEX.source, 'gi')
   let m: RegExpExecArray | null
-  const re = new RegExp(DATA_URI_REGEX.source, 'g')
   while ((m = re.exec(text)) !== null) {
-    matches.push({ uri: m[1], type: m[2] as 'image' | 'audio' })
+    const uri = m[0]
+    const type = m[1] as 'image' | 'audio'
+    if (!matches.some((x) => x.uri === uri)) {
+      matches.push({ uri, type })
+    }
   }
   if (matches.length === 0) return null
 
