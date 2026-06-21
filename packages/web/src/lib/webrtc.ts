@@ -39,15 +39,23 @@ export function sendSignal(toUserId: string, signal: CallSignal) {
 }
 
 export async function getLocalStream(video = false): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video,
-  })
+  const constraints: MediaStreamConstraints = {
+    audio: { echoCancellation: true, noiseSuppression: true },
+  }
+  if (video) {
+    constraints.video = {
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      frameRate: { ideal: 30 },
+    }
+  }
+  return navigator.mediaDevices.getUserMedia(constraints)
 }
 
 export function createPeerConnection(
   onRemoteStream: (stream: MediaStream) => void,
   onIceCandidate: (candidate: RTCIceCandidateInit) => void,
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void,
 ): RTCPeerConnection {
   const pc = new RTCPeerConnection(RTC_CONFIG)
 
@@ -59,7 +67,22 @@ export function createPeerConnection(
     onRemoteStream(e.streams[0])
   }
 
+  if (onConnectionStateChange) {
+    pc.onconnectionstatechange = () => onConnectionStateChange(pc.connectionState)
+  }
+
   return pc
+}
+
+export function flushIceCandidates(
+  pc: RTCPeerConnection,
+  candidates: RTCIceCandidateInit[],
+): RTCIceCandidateInit[] {
+  const failed: RTCIceCandidateInit[] = []
+  for (const c of candidates) {
+    pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => failed.push(c))
+  }
+  return failed
 }
 
 export function cleanupMediaStream(stream: MediaStream | null) {

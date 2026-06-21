@@ -30,6 +30,7 @@ import {
   getLocalStream,
   createPeerConnection,
   cleanupMediaStream,
+  flushIceCandidates,
   type CallSignal,
 } from '@/lib/webrtc'
 import CallUI from '@/components/CallUI'
@@ -92,6 +93,7 @@ export default function ChatPage() {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const pendingOfferRef = useRef<string | null>(null)
+  const pendingCandidates = useRef<RTCIceCandidateInit[]>([])
   const callStateRef = useRef(callState)
   callStateRef.current = callState
 
@@ -110,10 +112,20 @@ export default function ChatPage() {
         setCallState('ringing')
       } else if (signal.type === 'answer' && callStateRef.current === 'calling') {
         const desc = new RTCSessionDescription({ type: 'answer', sdp: signal.sdp! })
-        await pcRef.current?.setRemoteDescription(desc)
+        const pc = pcRef.current
+        if (pc) {
+          await pc.setRemoteDescription(desc)
+          const leftover = flushIceCandidates(pc, pendingCandidates.current)
+          pendingCandidates.current = leftover
+        }
         setCallState('connected')
-      } else if (signal.type === 'ice-candidate' && pcRef.current) {
-        await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate!))
+      } else if (signal.type === 'ice-candidate') {
+        const pc = pcRef.current
+        if (pc && pc.remoteDescription) {
+          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate!)).catch(() => {})
+        } else if (signal.candidate) {
+          pendingCandidates.current.push(signal.candidate)
+        }
       } else if (signal.type === 'end') {
         endCallInternal()
       } else if (signal.type === 'missed') {
@@ -500,6 +512,7 @@ export default function ChatPage() {
     setCallState('idle')
     setIncomingCaller(null)
     pendingOfferRef.current = null
+    pendingCandidates.current = []
   }
 
   async function startCall(video: boolean) {
@@ -518,6 +531,11 @@ export default function ChatPage() {
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
         (candidate) => sendSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, candidate }),
+        (state) => {
+          if (state === 'disconnected' || state === 'failed') {
+            if (callStateRef.current === 'connected') endCallInternal()
+          }
+        },
       )
       pcRef.current = pc
       stream.getTracks().forEach((t) => pc.addTrack(t, stream))
@@ -544,6 +562,11 @@ export default function ChatPage() {
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
         (candidate) => sendSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, candidate }),
+        (state) => {
+          if (state === 'disconnected' || state === 'failed') {
+            if (callStateRef.current === 'connected') endCallInternal()
+          }
+        },
       )
       pcRef.current = pc
       stream.getTracks().forEach((t) => pc.addTrack(t, stream))
@@ -551,6 +574,8 @@ export default function ChatPage() {
       await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: pendingOfferRef.current }))
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
+      const leftover = flushIceCandidates(pc, pendingCandidates.current)
+      pendingCandidates.current = leftover
       sendSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, sdp: answer.sdp! })
       setCallState('connected')
     } catch (e) {
