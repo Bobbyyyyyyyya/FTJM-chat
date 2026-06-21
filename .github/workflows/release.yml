@@ -46,6 +46,10 @@ jobs:
       - name: Setup env files
         run: cp .env.example .env.local
 
+      - name: Install Linux build tools
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
+
       - name: Build
         run: pnpm build
 
@@ -70,6 +74,9 @@ jobs:
         run: cd packages/main && npx electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List built artifacts
+        run: ls -la packages/main/release/
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v3
