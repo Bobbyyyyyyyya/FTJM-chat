@@ -44,6 +44,7 @@ jobs:
         run: pnpm install
 
       - name: Setup env files
+        shell: bash
         run: cp .env.example .env.local
 
       - name: Install Linux build tools
@@ -71,11 +72,13 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
       - name: Package
+        shell: bash
         run: cd packages/main && npx electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List built artifacts
+        shell: bash
         run: ls -la packages/main/release/
 
       - name: Upload Release Assets
