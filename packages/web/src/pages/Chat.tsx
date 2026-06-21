@@ -31,6 +31,7 @@ import {
   createPeerConnection,
   cleanupMediaStream,
   flushIceCandidates,
+  cleanupSignals,
   type CallSignal,
 } from '@/lib/webrtc'
 import CallUI from '@/components/CallUI'
@@ -132,7 +133,7 @@ export default function ChatPage() {
         setCallState('idle')
       }
     })
-    return () => { channel.unsubscribe() }
+    return () => { channel.unsubscribe(); cleanupSignals() }
   }, [user?.id])
 
   // Load custom theme from localStorage on mount
