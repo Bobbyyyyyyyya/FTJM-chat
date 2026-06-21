@@ -25,8 +25,8 @@ import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
 import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
 import {
-  listenForSignals,
-  sendSignal,
+  startPollingSignals,
+  sendSignalViaMessages,
   getLocalStream,
   createPeerConnection,
   cleanupMediaStream,
@@ -34,6 +34,7 @@ import {
   cleanupSignals,
   type CallSignal,
 } from '@/lib/webrtc'
+import { isCallSignal } from '@/lib/db'
 import CallUI from '@/components/CallUI'
 import { startRingtone, stopRingtone } from '@/lib/ringtone'
 
@@ -97,16 +98,18 @@ export default function ChatPage() {
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([])
   const callStateRef = useRef(callState)
   callStateRef.current = callState
+  const callConvIdRef = useRef<string | null>(null)
 
-  // Listen for incoming call signals
+  // Listen for incoming call signals via messages table polling
   useEffect(() => {
-    if (!user?.id) return
-    const channel = listenForSignals(user.id, async (signal: CallSignal) => {
+    if (!user?.id || !selectedConvId) return
+    const stop = startPollingSignals(selectedConvId, user.id, async (signal: CallSignal) => {
       if (signal.type === 'offer') {
         if (callStateRef.current !== 'idle') {
-          sendSignal(signal.from, { type: 'missed', from: user.id, to: signal.from })
+          sendSignalViaMessages(selectedConvId, user.id, { type: 'missed', from: user.id, to: signal.from })
           return
         }
+        callConvIdRef.current = selectedConvId
         setIncomingCaller(signal.from)
         pendingOfferRef.current = signal.sdp || null
         setCallVideo(signal.sdp?.includes('m=video') || false)
@@ -133,8 +136,8 @@ export default function ChatPage() {
         setCallState('idle')
       }
     })
-    return () => { channel.unsubscribe(); cleanupSignals() }
-  }, [user?.id])
+    return () => { stop(); cleanupSignals() }
+  }, [user?.id, selectedConvId])
 
   // Load custom theme from localStorage on mount
   useEffect(() => {
@@ -514,12 +517,14 @@ export default function ChatPage() {
     setIncomingCaller(null)
     pendingOfferRef.current = null
     pendingCandidates.current = []
+    callConvIdRef.current = null
   }
 
   async function startCall(video: boolean) {
     if (!user?.id || !selectedConversation) return
     const otherId = selectedConversation.participants!.find((id: string) => id !== user.id)
     if (!otherId) return
+    callConvIdRef.current = selectedConversation.id
     setCallVideo(video)
     setCallState('calling')
     setCallRemoteName(getParticipantInfo(otherId).display_name)
@@ -531,7 +536,7 @@ export default function ChatPage() {
 
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
-        (candidate) => sendSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, candidate }),
+        (candidate) => sendSignalViaMessages(selectedConversation.id, user.id, { type: 'ice-candidate', from: user.id, to: otherId, candidate }),
         (state) => {
           if (state === 'disconnected' || state === 'failed') {
             if (callStateRef.current === 'connected') endCallInternal()
@@ -543,7 +548,7 @@ export default function ChatPage() {
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      sendSignal(otherId, { type: 'offer', from: user.id, to: otherId, sdp: offer.sdp! })
+      sendSignalViaMessages(selectedConversation.id, user.id, { type: 'offer', from: user.id, to: otherId, sdp: offer.sdp! })
     } catch (e) {
       console.error('Call error:', e)
       endCallInternal()
@@ -552,6 +557,8 @@ export default function ChatPage() {
 
   async function answerCall() {
     if (!user?.id || !incomingCaller || !pendingOfferRef.current) return
+    const convId = callConvIdRef.current
+    if (!convId) return
     setCallState('calling')
     setCallRemoteName(getParticipantInfo(incomingCaller).display_name)
 
@@ -562,7 +569,7 @@ export default function ChatPage() {
 
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
-        (candidate) => sendSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, candidate }),
+        (candidate) => sendSignalViaMessages(convId, user.id, { type: 'ice-candidate', from: user.id, to: incomingCaller, candidate }),
         (state) => {
           if (state === 'disconnected' || state === 'failed') {
             if (callStateRef.current === 'connected') endCallInternal()
@@ -577,7 +584,7 @@ export default function ChatPage() {
       await pc.setLocalDescription(answer)
       const leftover = flushIceCandidates(pc, pendingCandidates.current)
       pendingCandidates.current = leftover
-      sendSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, sdp: answer.sdp! })
+      sendSignalViaMessages(convId, user.id, { type: 'answer', from: user.id, to: incomingCaller, sdp: answer.sdp! })
       setCallState('connected')
     } catch (e) {
       console.error('Answer error:', e)
@@ -587,7 +594,8 @@ export default function ChatPage() {
 
   function declineCall() {
     if (!user?.id || !incomingCaller) return
-    sendSignal(incomingCaller, { type: 'end', from: user.id, to: incomingCaller })
+    const convId = callConvIdRef.current
+    if (convId) sendSignalViaMessages(convId, user.id, { type: 'end', from: user.id, to: incomingCaller })
     setCallState('idle')
     setIncomingCaller(null)
     pendingOfferRef.current = null
@@ -596,7 +604,8 @@ export default function ChatPage() {
   function endCall() {
     if (!user?.id) return
     const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user.id)
-    if (target) sendSignal(target, { type: 'end', from: user.id, to: target })
+    const convId = callConvIdRef.current || selectedConversation?.id
+    if (target && convId) sendSignalViaMessages(convId, user.id, { type: 'end', from: user.id, to: target })
     endCallInternal()
   }
 
@@ -850,7 +859,7 @@ export default function ChatPage() {
                       <p className="text-muted text-sm mt-1">Send the first message!</p>
                     </div>
                   )}
-                  {[...messages].reverse().map((msg) => {
+                  {[...messages].filter((m) => !isCallSignal(m.text)).reverse().map((msg) => {
                     const isMine = msg.sender_id === user?.id
                     const participant = getParticipantInfo(msg.sender_id)
                     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

@@ -180,6 +180,65 @@ export async function deleteMessage(messageId: string) {
 }
 
 // Update typing status
+const CALL_SIGNAL_PREFIX = '__call__'
+
+export function isCallSignal(text: string): boolean {
+  return text.startsWith(CALL_SIGNAL_PREFIX)
+}
+
+export async function sendCallSignal(
+  conversationId: string,
+  senderId: string,
+  signal: Record<string, any>
+) {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      text: CALL_SIGNAL_PREFIX + JSON.stringify(signal),
+      is_encrypted: false,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[call] Error sending signal message:', error)
+    return null
+  }
+  return data as Message
+}
+
+export async function pollCallSignals(
+  conversationId: string,
+  since: string | null
+) {
+  let query = supabase
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .like('text', `${CALL_SIGNAL_PREFIX}%`)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (since) {
+    query = query.gt('created_at', since)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('[call] Error polling signals:', error)
+    return []
+  }
+  return (data as Message[]).filter((m) => isCallSignal(m.text))
+}
+
+export async function deleteCallSignal(messageId: string) {
+  await supabase
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId)
+}
 export async function setTypingStatus(
   conversationId: string,
   userId: string,

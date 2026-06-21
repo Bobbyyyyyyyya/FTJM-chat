@@ -1,5 +1,5 @@
-import { supabase } from './supabase'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import { sendCallSignal, pollCallSignals, deleteCallSignal } from './db-conversations'
+import type { Message } from './types'
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
@@ -20,48 +20,83 @@ export interface CallSignal {
 
 type SignalHandler = (signal: CallSignal) => void
 
-const outgoingChannels = new Map<string, { channel: RealtimeChannel; ready: boolean; queue: CallSignal[] }>()
+let signalHandler: SignalHandler | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let lastPollTime: string | null = null
+let pollConversationId: string | null = null
+let pollUserId: string | null = null
 
-export function listenForSignals(userId: string, handler: SignalHandler) {
-  console.log('[call] listenForSignals for', userId)
-  const channel = supabase.channel(`calls-${userId}`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(channel as any).on('broadcast', { event: 'signal' }, (payload: any) => {
-    console.log('[call] received signal', payload)
-    handler(payload.data ?? payload.payload)
-  })
-  channel.subscribe((status, err) => {
-    console.log('[call] listener channel status:', status, err)
-    if (status === 'CHANNEL_ERROR') {
-      console.error('[call] Signal channel error for', userId, err)
+export function startPollingSignals(
+  conversationId: string,
+  userId: string,
+  handler: SignalHandler,
+) {
+  signalHandler = handler
+  pollConversationId = conversationId
+  pollUserId = userId
+
+  const poll = async () => {
+    if (!pollConversationId) return
+    const msgs = await pollCallSignals(pollConversationId, lastPollTime)
+    for (const msg of msgs) {
+      if (msg.sender_id === userId) continue
+      const signal = parseSignalMessage(msg.text)
+      if (signal) {
+        if (!lastPollTime || msg.created_at > lastPollTime) {
+          lastPollTime = msg.created_at
+        }
+        handler(signal)
+        await deleteCallSignal(msg.id).catch(() => {})
+      }
     }
-  })
-  return channel
+    if (msgs.length > 0) {
+      // Do another round immediately in case there are more
+      setTimeout(poll, 100)
+    }
+  }
+
+  // Initial poll
+  poll()
+
+  // Poll every 500ms for new signals
+  pollTimer = setInterval(poll, 500)
+
+  return () => {
+    if (pollTimer) clearInterval(pollTimer)
+    pollTimer = null
+    signalHandler = null
+    pollConversationId = null
+    pollUserId = null
+    lastPollTime = null
+  }
 }
 
-export function sendSignal(toUserId: string, signal: CallSignal) {
-  console.log('[call] sendSignal to', toUserId, signal.type)
+export function sendSignalViaMessages(
+  conversationId: string,
+  senderId: string,
+  signal: CallSignal,
+) {
+  sendCallSignal(conversationId, senderId, signal)
+}
 
-  // Use REST API for sending (more reliable than WebSocket push)
-  const sendViaRest = () => {
-    const ch = supabase.channel(`calls-${toUserId}`)
-    ch.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await (ch as any).httpSend('signal', signal).catch((e: any) => {
-          console.error('[call] httpSend failed, trying WebSocket:', e)
-          ch.send({ type: 'broadcast', event: 'signal', payload: signal })
-        })
-        setTimeout(() => supabase.removeChannel(ch), 3000)
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error('[call] send REST channel error')
-      }
-    })
+const CALL_PREFIX = '__call__'
+
+function parseSignalMessage(text: string): CallSignal | null {
+  if (!text.startsWith(CALL_PREFIX)) return null
+  try {
+    return JSON.parse(text.slice(CALL_PREFIX.length)) as CallSignal
+  } catch {
+    return null
   }
-  sendViaRest()
 }
 
 export function cleanupSignals() {
-  // Any cleanup if needed
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
+  signalHandler = null
+  pollConversationId = null
+  pollUserId = null
+  lastPollTime = null
 }
 
 export async function getLocalStream(video = false): Promise<MediaStream> {
