@@ -68,8 +68,6 @@ export function applyCustomTheme(t: CustomTheme) {
     root.style.setProperty('--text-secondary', hexToRgb(t.text_color))
   }
   if (t.secondary_color) {
-    root.style.setProperty('--text-secondary', hexToRgb(t.secondary_color))
-    root.style.setProperty('--text-muted', hexToRgb(t.secondary_color))
     root.style.setProperty('--accent-hover-rgb', hexToRgb(t.secondary_color))
     root.style.setProperty('--accent-to-rgb', hexToRgb(t.secondary_color))
   }
