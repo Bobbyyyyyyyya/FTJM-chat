@@ -125,28 +125,30 @@ export function useVoiceCall(
     }
 
     const ch = supabase.channel(`calls:${targetUserId}`, {
-      config: { broadcast: { self: false, ack: true } },
+      config: { broadcast: { self: false } },
     })
     outboundRef.current = ch
 
     ch.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await ch.send({
-          type: 'broadcast',
-          event: 'incoming_call',
-          payload: callPayload,
-        })
-
-        setupPeerConnection(targetUserId, roomId, media, ch)
-
-        const offer = await pcRef.current!.createOffer()
-        await pcRef.current!.setLocalDescription(offer)
-        await ch.send({
-          type: 'broadcast',
-          event: 'offer',
-          payload: { roomId, sdp: offer.sdp, from: userId, to: targetUserId },
-        })
+      if (status === 'CHANNEL_ERROR') {
+        console.error('❌ Call outbound channel error (startCall)')
       }
+      if (status !== 'SUBSCRIBED') return
+      await ch.send({
+        type: 'broadcast',
+        event: 'incoming_call',
+        payload: callPayload,
+      })
+
+      setupPeerConnection(targetUserId, roomId, media, ch)
+
+      const offer = await pcRef.current!.createOffer()
+      await pcRef.current!.setLocalDescription(offer)
+      await ch.send({
+        type: 'broadcast',
+        event: 'offer',
+        payload: { roomId, sdp: offer.sdp, from: userId, to: targetUserId },
+      })
     })
   }
 
@@ -164,33 +166,35 @@ export function useVoiceCall(
     }
 
     const ch = supabase.channel(`calls:${call.callerId}`, {
-      config: { broadcast: { self: false, ack: true } },
+      config: { broadcast: { self: false } },
     })
     outboundRef.current = ch
 
     ch.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        setupPeerConnection(call.callerId, call.roomId, media, ch)
-
-        const offerSdp = pendingOfferRef.current
-        if (pcRef.current && offerSdp) {
-          await pcRef.current.setRemoteDescription(
-            new RTCSessionDescription({ type: 'offer', sdp: offerSdp }),
-          )
-          const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
-          pendingCandidates.current = leftover
-          const answer = await pcRef.current.createAnswer()
-          await pcRef.current.setLocalDescription(answer)
-          await ch.send({
-            type: 'broadcast',
-            event: 'answer',
-            payload: { roomId: call.roomId, sdp: answer.sdp, from: userId, to: call.callerId },
-          })
-        }
-
-        setCallState('connected')
-        startTimer()
+      if (status === 'CHANNEL_ERROR') {
+        console.error('❌ Call outbound channel error (acceptCall)')
       }
+      if (status !== 'SUBSCRIBED') return
+      setupPeerConnection(call.callerId, call.roomId, media, ch)
+
+      const offerSdp = pendingOfferRef.current
+      if (pcRef.current && offerSdp) {
+        await pcRef.current.setRemoteDescription(
+          new RTCSessionDescription({ type: 'offer', sdp: offerSdp }),
+        )
+        const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
+        pendingCandidates.current = leftover
+        const answer = await pcRef.current.createAnswer()
+        await pcRef.current.setLocalDescription(answer)
+        await ch.send({
+          type: 'broadcast',
+          event: 'answer',
+          payload: { roomId: call.roomId, sdp: answer.sdp, from: userId, to: call.callerId },
+        })
+      }
+
+      setCallState('connected')
+      startTimer()
     })
   }
 
@@ -199,13 +203,12 @@ export function useVoiceCall(
     if (!call || !userId) return
     const target = call.callerId === userId ? call.receiverId : call.callerId
     const ch = supabase.channel(`calls:${target}`, {
-      config: { broadcast: { self: false, ack: true } },
+      config: { broadcast: { self: false } },
     })
     ch.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-        await ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
-      }
+      if (status !== 'SUBSCRIBED') return
+      await ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
+      await ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
     })
     cleanup()
   }
@@ -214,13 +217,12 @@ export function useVoiceCall(
     const call = activeCallRef.current
     if (!call || !userId) return
     const ch = supabase.channel(`calls:${call.callerId}`, {
-      config: { broadcast: { self: false, ack: true } },
+      config: { broadcast: { self: false } },
     })
     ch.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-        await ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
-      }
+      if (status !== 'SUBSCRIBED') return
+      await ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
+      await ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
     })
     setCallState('idle')
     setActiveCall(null)
@@ -318,7 +320,11 @@ export function useVoiceCall(
         const call = activeCallRef.current
         if (call && payload.roomId === call.roomId) cleanup()
       })
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Call listener channel error')
+        }
+      })
 
     return () => {
       channel.unsubscribe()
