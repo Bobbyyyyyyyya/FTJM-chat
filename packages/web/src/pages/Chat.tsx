@@ -53,7 +53,7 @@ function useTheme() {
   return { theme, toggle }
 }
 
-export default function ChatPage() {
+export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) {
   const { user, logout } = useAuthStore()
   const { theme, toggle: toggleTheme } = useTheme()
 
@@ -743,13 +743,22 @@ export default function ChatPage() {
                         </svg>
                       </div>
                     ) : (
-                      <div className={`h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                        isSelected ? 'bg-gradient-accent shadow-sm' : 'bg-surface-hover text-secondary'
-                      }`}>
-                        {preview.photo_url ? (
-                          <img src={preview.photo_url} alt={preview.display_name} className="h-full w-full object-cover" />
-                        ) : (
-                          getAvatarInitials(preview.display_name)
+                      <div className="relative shrink-0">
+                        <div className={`h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0 ${
+                          isSelected ? 'bg-gradient-accent shadow-sm' : 'bg-surface-hover text-secondary'
+                        }`}>
+                          {preview.photo_url ? (
+                            <img src={preview.photo_url} alt={preview.display_name} className="h-full w-full object-cover" />
+                          ) : (
+                            getAvatarInitials(preview.display_name)
+                          )}
+                        </div>
+                        {!conv.is_group && (
+                          <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-surface ${
+                            onlineUsers.has(conv.participants.find((id: string) => id !== user?.id) || '') 
+                              ? 'bg-green-500' 
+                              : 'bg-gray-400'
+                          }`} />
                         )}
                       </div>
                     )}
@@ -811,11 +820,21 @@ export default function ChatPage() {
                       ? (selectedConversation.title || 'Group')
                       : 'Direct message'}
                   </p>
-                  <p className="text-sm text-primary font-medium truncate">
-                    {(Array.isArray(selectedConversation.participant_names) ? selectedConversation.participant_names : [])
-                      .filter((name, idx) => (Array.isArray(selectedConversation.participants) ? selectedConversation.participants : [])[idx] !== user?.id)
-                      .join(', ')}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-primary font-medium truncate">
+                      {(Array.isArray(selectedConversation.participant_names) ? selectedConversation.participant_names : [])
+                        .filter((name, idx) => (Array.isArray(selectedConversation.participants) ? selectedConversation.participants : [])[idx] !== user?.id)
+                        .join(', ')}
+                    </p>
+                    {!selectedConversation.is_group && (
+                      <span className={`h-2 w-2 rounded-full ${
+                        onlineUsers.has(
+                          (Array.isArray(selectedConversation.participants) ? selectedConversation.participants : [])
+                            .find((id: string) => id !== user?.id) || ''
+                        ) ? 'bg-green-500' : 'bg-gray-400'
+                      }`} />
+                    )}
+                  </div>
                 </div>
               </div>
               {!selectedConversation.is_group && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from './hooks/useAuth'
+import { usePresence } from './hooks/usePresence'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
 import UpdateNotifier from './components/UpdateNotifier'
@@ -8,6 +9,7 @@ import './App.css'
 function App() {
   const { user, loading, checkAuth } = useAuthStore()
   const [isInitialized, setIsInitialized] = useState(false)
+  const onlineUsers = usePresence(user?.id)
 
   useEffect(() => {
     // Check if user is already logged in
@@ -24,7 +26,7 @@ function App() {
 
   return (
     <>
-      {user ? <ChatPage /> : <LoginPage />}
+      {user ? <ChatPage onlineUsers={onlineUsers} /> : <LoginPage />}
       <UpdateNotifier />
     </>
   )
