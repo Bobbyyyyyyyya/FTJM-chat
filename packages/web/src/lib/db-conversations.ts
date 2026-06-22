@@ -247,7 +247,7 @@ export function subscribeToMessages(
   callback: (payload: RealtimePayload<Message>) => void
 ) {
   const topic = `messages-${conversationId}`
-  const channel = supabase.channel(topic, { config: { private: true } })
+  const channel = supabase.channel(topic)
 
   channel
     .on(
@@ -285,7 +285,7 @@ export function subscribeToTypingStatus(
   callback: (typingUsers: TypingStatus[]) => void
 ) {
   const channel = supabase
-    .channel(`typing-${conversationId}`, { config: { private: true } })
+    .channel(`typing-${conversationId}`)
     .on(
       'postgres_changes',
       {
