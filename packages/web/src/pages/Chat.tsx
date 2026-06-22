@@ -24,18 +24,9 @@ import {
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
 import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
-import {
-  subscribeToCallChannel,
-  sendCallSignal,
-  cleanupSendChannel,
-  getLocalStream,
-  createPeerConnection,
-  cleanupMediaStream,
-  flushIceCandidates,
-  type CallSignal,
-} from '@/lib/webrtc'
 import { isCallSignal } from '@/lib/db'
-import CallUI from '@/components/CallUI'
+import { useVoiceCall } from '@/hooks/useVoiceCall'
+import VoiceCallUI from '@/components/VoiceCallUI'
 import { startRingtone, stopRingtone } from '@/lib/ringtone'
 
 function useTheme() {
@@ -84,60 +75,43 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [showSettings, setShowSettings] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
 
-  // Call state
-  const [callState, setCallState] = useState<'idle' | 'calling' | 'ringing' | 'connected'>('idle')
-  const [callVideo, setCallVideo] = useState(false)
-  const [callRemoteName, setCallRemoteName] = useState('')
-  const [callMuted, setCallMuted] = useState(false)
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-  const [incomingCaller, setIncomingCaller] = useState<string | null>(null)
-  const pcRef = useRef<RTCPeerConnection | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(null)
-  const pendingOfferRef = useRef<string | null>(null)
-  const pendingCandidates = useRef<RTCIceCandidateInit[]>([])
-  const callStateRef = useRef(callState)
-  callStateRef.current = callState
-  const callConvIdRef = useRef<string | null>(null)
+  // Voice call
+  const voiceCall = useVoiceCall(
+    user?.id,
+    user?.display_name || 'Gebruiker',
+    user?.photo_url || undefined,
+  )
+  const {
+    callState,
+    activeCall,
+    duration,
+    isMuted,
+    localStream,
+    remoteStream,
+    layout,
+    startCall: vcStartCall,
+    acceptCall: vcAcceptCall,
+    endCall: vcEndCall,
+    declineCall: vcDeclineCall,
+    toggleMute: vcToggleMute,
+    setLayout,
+  } = voiceCall
 
-  // Listen for incoming call signals via Supabase Realtime Broadcast
+
+  // Ringtone for incoming calls
   useEffect(() => {
-    if (!user?.id) return
-    const unsubscribe = subscribeToCallChannel(user.id, async (signal: CallSignal) => {
-      if (signal.type === 'offer') {
-        if (callStateRef.current !== 'idle') {
-          await sendCallSignal(signal.from, { type: 'missed', from: user.id, to: signal.from, conversationId: signal.conversationId })
-          return
-        }
-        callConvIdRef.current = signal.conversationId
-        setIncomingCaller(signal.from)
-        pendingOfferRef.current = signal.sdp || null
-        setCallVideo(signal.sdp?.includes('m=video') || false)
-        setCallState('ringing')
-      } else if (signal.type === 'answer' && callStateRef.current === 'calling') {
-        const desc = new RTCSessionDescription({ type: 'answer', sdp: signal.sdp! })
-        const pc = pcRef.current
-        if (pc) {
-          await pc.setRemoteDescription(desc)
-          const leftover = flushIceCandidates(pc, pendingCandidates.current)
-          pendingCandidates.current = leftover
-        }
-        setCallState('connected')
-      } else if (signal.type === 'ice-candidate') {
-        const pc = pcRef.current
-        if (pc && pc.remoteDescription) {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate!)).catch(() => {})
-        } else if (signal.candidate) {
-          pendingCandidates.current.push(signal.candidate)
-        }
-      } else if (signal.type === 'end') {
-        endCallInternal()
-      } else if (signal.type === 'missed') {
-        setCallState('idle')
+    if (callState === 'ringing') {
+      startRingtone()
+      if (Notification.permission === 'granted' && activeCall) {
+        new Notification(`Incoming call from ${activeCall.callerName}`, {
+          body: activeCall.isVideo ? 'Video call' : 'Voice call',
+          icon: '/android-chrome-192x192.png',
+        })
       }
-    })
-    return unsubscribe
-  }, [user?.id])
+    } else {
+      stopRingtone()
+    }
+  }, [callState, activeCall])
 
   // Load custom theme from localStorage on mount
   useEffect(() => {
@@ -489,141 +463,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     })
   }
 
-  // Ringtone + desktop notification for incoming calls
-  const prevCallState = useRef(callState)
-  useEffect(() => {
-    if (callState === 'ringing' && prevCallState.current !== 'ringing') {
-      startRingtone()
-      if (Notification.permission === 'granted') {
-        new Notification(`Incoming call from ${callRemoteName}`, {
-          body: callVideo ? 'Video call' : 'Voice call',
-          icon: '/android-chrome-192x192.png',
-        })
-      }
-    } else if (prevCallState.current === 'ringing' && callState !== 'ringing') {
-      stopRingtone()
-    }
-    prevCallState.current = callState
-  }, [callState, callRemoteName, callVideo])
-
-  function endCallInternal() {
-    const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user?.id)
-    if (target) cleanupSendChannel(target)
-    pcRef.current?.close()
-    pcRef.current = null
-    cleanupMediaStream(localStreamRef.current)
-    localStreamRef.current = null
-    setRemoteStream(null)
-    setLocalStream(null)
-    setCallState('idle')
-    setIncomingCaller(null)
-    pendingOfferRef.current = null
-    pendingCandidates.current = []
-    callConvIdRef.current = null
-  }
-
-  async function startCall(video: boolean) {
+  function handleStartCall(video: boolean) {
     if (!user?.id || !selectedConversation) return
-    const otherId = selectedConversation.participants!.find((id: string) => id !== user.id)
+    const otherId = selectedConversation.participants?.find((id: string) => id !== user.id)
     if (!otherId) return
-    const convId = selectedConversation.id
-    callConvIdRef.current = convId
-    setCallVideo(video)
-    setCallState('calling')
-    setCallRemoteName(getParticipantInfo(otherId).display_name)
-
-    try {
-      const stream = await getLocalStream(video)
-      localStreamRef.current = stream
-      setLocalStream(stream)
-
-      const pc = createPeerConnection(
-        (rs) => setRemoteStream(rs),
-        async (candidate) => {
-          await sendCallSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, conversationId: convId, candidate })
-        },
-        (state) => {
-          if (state === 'disconnected' || state === 'failed') {
-            if (callStateRef.current === 'connected') endCallInternal()
-          }
-        },
-      )
-      pcRef.current = pc
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
-      await sendCallSignal(otherId, { type: 'offer', from: user.id, to: otherId, conversationId: convId, sdp: offer.sdp! })
-    } catch (e) {
-      console.error('Call error:', e)
-      endCallInternal()
-    }
-  }
-
-  async function answerCall() {
-    if (!user?.id || !incomingCaller || !pendingOfferRef.current) return
-    const convId = callConvIdRef.current
-    if (!convId) return
-    setCallState('calling')
-    setCallRemoteName(getParticipantInfo(incomingCaller).display_name)
-
-    try {
-      const stream = await getLocalStream(callVideo)
-      localStreamRef.current = stream
-      setLocalStream(stream)
-
-      const pc = createPeerConnection(
-        (rs) => setRemoteStream(rs),
-        async (candidate) => {
-          await sendCallSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, conversationId: convId, candidate })
-        },
-        (state) => {
-          if (state === 'disconnected' || state === 'failed') {
-            if (callStateRef.current === 'connected') endCallInternal()
-          }
-        },
-      )
-      pcRef.current = pc
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-
-      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: pendingOfferRef.current }))
-      const answer = await pc.createAnswer()
-      await pc.setLocalDescription(answer)
-      const leftover = flushIceCandidates(pc, pendingCandidates.current)
-      pendingCandidates.current = leftover
-      await sendCallSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, conversationId: convId, sdp: answer.sdp! })
-      setCallState('connected')
-    } catch (e) {
-      console.error('Answer error:', e)
-      endCallInternal()
-    }
-  }
-
-  async function declineCall() {
-    if (!user?.id || !incomingCaller) return
-    const convId = callConvIdRef.current
-    if (convId) await sendCallSignal(incomingCaller, { type: 'end', from: user.id, to: incomingCaller, conversationId: convId })
-    setCallState('idle')
-    setIncomingCaller(null)
-    pendingOfferRef.current = null
-  }
-
-  async function endCall() {
-    if (!user?.id) return
-    const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user.id)
-    const convId = callConvIdRef.current || selectedConversation?.id
-    if (target && convId) await sendCallSignal(target, { type: 'end', from: user.id, to: target, conversationId: convId })
-    endCallInternal()
-  }
-
-  function toggleMute() {
-    const stream = localStreamRef.current
-    if (!stream) return
-    const audio = stream.getAudioTracks()[0]
-    if (audio) {
-      audio.enabled = !audio.enabled
-      setCallMuted(!audio.enabled)
-    }
+    const info = getParticipantInfo(otherId)
+    vcStartCall(otherId, info.display_name, info.photo_url || '', video)
   }
 
   const getConversationPreview = (conv: Conversation) => {
@@ -843,14 +688,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               </div>
               {!selectedConversation.is_group && (
                 <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => startCall(false)}
+                  <button onClick={() => handleStartCall(false)}
                     className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
                     title="Voice call">
                     <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </button>
-                  <button onClick={() => startCall(true)}
+                  <button onClick={() => handleStartCall(true)}
                     className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
                     title="Video call">
                     <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1101,21 +946,23 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       {/* Settings modal */}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
 
-      {/* Call UI */}
-      {callState !== 'idle' && (
-        <CallUI
-          callState={callState}
-          video={callVideo}
-          muted={callMuted}
-          remoteName={callRemoteName}
-          remoteStream={remoteStream}
-          localStream={localStream}
-          onAnswer={answerCall}
-          onDecline={declineCall}
-          onEnd={endCall}
-          onToggleMute={toggleMute}
-        />
-      )}
+      {/* Voice Call UI */}
+      <VoiceCallUI
+        callState={callState}
+        activeCall={activeCall}
+        duration={duration}
+        isMuted={isMuted}
+        isVideoMuted={false}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        layout={layout}
+        onAccept={vcAcceptCall}
+        onEnd={vcEndCall}
+        onDecline={vcDeclineCall}
+        onToggleMute={vcToggleMute}
+        onToggleVideo={() => {}}
+        onSetLayout={setLayout}
+      />
 
       {/* Profile modal */}
       {profilePreview && (

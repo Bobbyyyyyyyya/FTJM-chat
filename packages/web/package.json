@@ -1,6 +1,6 @@
 {
   "name": "@ftjm/web",
-  "version": "0.4.33",
+  "version": "0.4.34",
   "description": "React web app",
   "type": "module",
   "scripts": {
@@ -12,6 +12,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
     "crypto-js": "^4.1.1",
+    "lucide-react": "^1.21.0",
+    "motion": "^12.40.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.4.0"
