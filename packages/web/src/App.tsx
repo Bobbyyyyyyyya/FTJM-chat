@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Toaster } from 'sonner'
 import { useAuthStore } from './hooks/useAuth'
 import { usePresence } from './hooks/usePresence'
 import LoginPage from './pages/Login'
@@ -28,6 +29,12 @@ function App() {
     <>
       {user ? <ChatPage onlineUsers={onlineUsers} /> : <LoginPage />}
       <UpdateNotifier />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' },
+        }}
+      />
     </>
   )
 }

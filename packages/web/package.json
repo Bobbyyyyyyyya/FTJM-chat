@@ -1,6 +1,6 @@
 {
   "name": "@ftjm/web",
-  "version": "0.4.36",
+  "version": "0.4.37",
   "description": "React web app",
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "motion": "^12.40.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "sonner": "^2.0.7",
     "zustand": "^4.4.0"
   },
   "devDependencies": {

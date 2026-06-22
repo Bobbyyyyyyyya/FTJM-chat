@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import {
   getLocalStream,
@@ -38,7 +39,6 @@ export function useVoiceCall(
   const activeCallRef = useRef<CallData | null>(null)
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([])
   const pendingOfferRef = useRef<string | null>(null)
-  const outboundChannelRef = useRef<RealtimeChannel | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const callStateRef = useRef<CallState>('idle')
 
@@ -112,7 +112,6 @@ export function useVoiceCall(
     const outboundChannel = supabase.channel(`calls:${targetUserId}`, {
       config: { broadcast: { self: false, ack: true } },
     })
-    outboundChannelRef.current = outboundChannel
 
     outboundChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -151,16 +150,9 @@ export function useVoiceCall(
     const outboundChannel = supabase.channel(`calls:${call.callerId}`, {
       config: { broadcast: { self: false, ack: true } },
     })
-    outboundChannelRef.current = outboundChannel
 
     outboundChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        await outboundChannel.send({
-          type: 'broadcast',
-          event: 'call_accepted',
-          payload: { roomId: call.roomId },
-        })
-
         setupPeerConnection(call.callerId, call.roomId, media)
 
         const offerSdp = pendingOfferRef.current
@@ -205,14 +197,16 @@ export function useVoiceCall(
     const call = activeCallRef.current
     if (!call || !userId) return
     const target = call.callerId === userId ? call.receiverId : call.callerId
-    sendViaChannel(target, 'call_ended', { roomId: call.roomId })
+    sendViaChannel(target, 'ended', { roomId: call.roomId })
+    sendViaChannel(target, 'hangup', { roomId: call.roomId })
     cleanup()
   }
 
   function declineCall() {
     const call = activeCallRef.current
     if (!call || !userId) return
-    sendViaChannel(call.callerId, 'call_ended', { roomId: call.roomId })
+    sendViaChannel(call.callerId, 'ended', { roomId: call.roomId })
+    sendViaChannel(call.callerId, 'hangup', { roomId: call.roomId })
     setCallState('idle')
     setActiveCall(null)
   }
@@ -223,7 +217,6 @@ export function useVoiceCall(
     pcRef.current = null
     cleanupMediaStream(localStreamRef.current)
     localStreamRef.current = null
-    outboundChannelRef.current = null
     setRemoteStream(null)
     setLocalStream(null)
     setCallState('idle')
@@ -263,19 +256,19 @@ export function useVoiceCall(
       .on('broadcast', { event: 'incoming_call' }, ({ payload }) => {
         const data = payload as CallData
         if (data.receiverId !== userId) return
+        toast.success(`Inkomend gesprek gedetecteerd van: ${data.callerName}`, {
+          duration: 5000,
+        })
         setActiveCall(data)
         setCallState('ringing')
-      })
-      .on('broadcast', { event: 'call_accepted' }, async ({ payload }) => {
-        const call = activeCallRef.current
-        if (!call || payload.roomId !== call.roomId) return
-        setCallState('connected')
-        startTimer()
       })
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
         const call = activeCallRef.current
         if (!call || payload.roomId !== call.roomId) return
         if (callStateRef.current === 'ringing' && payload.sdp) {
+          toast.info('RTC sdp-aanbod (offer) ontvangen van beller...', {
+            duration: 4000,
+          })
           pendingOfferRef.current = payload.sdp
         }
       })
@@ -299,7 +292,11 @@ export function useVoiceCall(
           pendingCandidates.current.push(payload.candidate)
         }
       })
-      .on('broadcast', { event: 'call_ended' }, ({ payload }) => {
+      .on('broadcast', { event: 'ended' }, ({ payload }) => {
+        const call = activeCallRef.current
+        if (call && payload.roomId === call.roomId) cleanup()
+      })
+      .on('broadcast', { event: 'hangup' }, ({ payload }) => {
         const call = activeCallRef.current
         if (call && payload.roomId === call.roomId) cleanup()
       })
