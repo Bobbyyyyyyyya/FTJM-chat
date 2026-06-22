@@ -272,10 +272,20 @@ export function useVoiceCall(
     })
 
     channel
+      .on('broadcast', { event: '*' }, ({ payload, event: eventName }) => {
+        console.log(`[call] broadcast event ontvangen: "${eventName}"`, payload)
+      })
       .on('broadcast', { event: 'incoming_call' }, ({ payload }) => {
         const data = payload as CallData
-        if (data.receiverId !== userId) return
-        if (callStateRef.current !== 'idle') return
+        console.log('[call] incoming_call ontvangen:', data.callerName, 'receiverId:', data.receiverId, 'userId:', userId)
+        if (data.receiverId !== userId) {
+          console.log('[call] receiverId mismatch, skip')
+          return
+        }
+        if (callStateRef.current !== 'idle') {
+          console.log('[call] niet idle (state:', callStateRef.current, '), skip')
+          return
+        }
         toast.success(`Inkomend gesprek gedetecteerd van: ${data.callerName}`, {
           duration: 5000,
         })
@@ -284,6 +294,7 @@ export function useVoiceCall(
       })
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
         const call = activeCallRef.current
+        console.log('[call] offer ontvangen, roomId:', payload.roomId, 'activeCall?.roomId:', call?.roomId, 'state:', callStateRef.current)
         if (!call || payload.roomId !== call.roomId) return
         if (callStateRef.current === 'ringing' && payload.sdp) {
           toast.info('RTC sdp-aanbod (offer) ontvangen van beller...', {
