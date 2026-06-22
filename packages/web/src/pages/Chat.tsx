@@ -102,11 +102,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   useEffect(() => {
     if (callState === 'ringing') {
       startRingtone()
-      if (Notification.permission === 'granted' && activeCall) {
-        new Notification(`Incoming call from ${activeCall.callerName}`, {
-          body: activeCall.isVideo ? 'Video call' : 'Voice call',
-          icon: '/android-chrome-192x192.png',
-        })
+      if (activeCall) {
+        const title = `Incoming call from ${activeCall.callerName}`
+        const body = activeCall.isVideo ? 'Video call' : 'Voice call'
+        if ((window as any).electron?.notify) {
+          (window as any).electron.notify(title, body)
+        } else if (Notification.permission === 'granted') {
+          new Notification(title, { body })
+        }
       }
     } else {
       stopRingtone()
@@ -452,15 +455,16 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const closeProfile = () => setProfilePreview(null)
 
   function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
-    if (Notification.permission !== 'granted') return
     if (!myProfile?.notification_settings) return
     const ns = myProfile.notification_settings as any
     if (type === 'dm' && !ns.notify_new_messages) return
     if (type === 'post' && !ns.notify_new_posts) return
-    new Notification(title, {
-      body: body.slice(0, 200),
-      icon: '/android-chrome-192x192.png',
-    })
+    const text = body.slice(0, 200)
+    if ((window as any).electron?.notify) {
+      (window as any).electron.notify(title, text)
+    } else if (Notification.permission === 'granted') {
+      new Notification(title, { body: text })
+    }
   }
 
   function handleStartCall(video: boolean) {

@@ -75,7 +75,7 @@ export default function VoiceCallUI({
     <>
       {/* Remote audio/video (always mounted when connected, so audio keeps playing) */}
       {isConnected && remoteStream && (
-        activeCall.isVideo ? (
+        activeCall.isVideo && remoteStream.getVideoTracks().length > 0 ? (
           <video
             ref={remoteVideoRef}
             autoPlay
