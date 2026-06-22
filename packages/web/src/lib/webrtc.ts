@@ -50,26 +50,35 @@ export function subscribeToCallChannel(
 
 const sendChannels = new Map<string, RealtimeChannel>()
 
-function getSendChannel(targetId: string): RealtimeChannel {
-  let ch = sendChannels.get(targetId)
-  if (ch) return ch
+function getSendChannel(targetId: string): Promise<RealtimeChannel> {
+  const existing = sendChannels.get(targetId)
+  if (existing) return Promise.resolve(existing)
 
-  ch = supabase.channel(`calls:${targetId}`, {
-    config: { broadcast: { self: false } },
+  return new Promise((resolve) => {
+    const ch = supabase.channel(`calls:${targetId}`, {
+      config: { broadcast: { self: false, ack: true } },
+    })
+
+    ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        sendChannels.set(targetId, ch)
+        resolve(ch)
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error(`[call] Send channel error for ${targetId}`)
+        sendChannels.delete(targetId)
+        resolve(ch)
+      }
+    })
   })
-  ch.subscribe((status) => {
-    if (status === 'CHANNEL_ERROR') {
-      console.error(`[call] Send channel error for ${targetId}`)
-      sendChannels.delete(targetId)
-    }
-  })
-  sendChannels.set(targetId, ch)
-  return ch
 }
 
-export function sendCallSignal(targetId: string, signal: CallSignal) {
-  const ch = getSendChannel(targetId)
-  ;(ch as any).httpSend('call_signal', signal)
+export async function sendCallSignal(targetId: string, signal: CallSignal) {
+  const ch = await getSendChannel(targetId)
+  ch.send({
+    type: 'broadcast',
+    event: 'call_signal',
+    payload: signal,
+  })
 }
 
 export function cleanupSendChannel(targetId: string) {
@@ -106,9 +115,12 @@ export function subscribeToGroupCallChannel(
   }
 }
 
-export function sendGroupCallSignal(roomId: string, signal: CallSignal) {
-  const ch = supabase.channel(`group_calls:${roomId}`)
-  ;(ch as any).httpSend('group_call_signal', signal)
+export async function sendGroupCallSignal(roomId: string, signal: CallSignal) {
+  supabase.channel(`group_calls:${roomId}`).send({
+    type: 'broadcast',
+    event: 'group_call_signal',
+    payload: signal,
+  })
 }
 
 // ── Media & peer connection ──

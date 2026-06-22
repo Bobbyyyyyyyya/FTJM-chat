@@ -106,7 +106,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     const unsubscribe = subscribeToCallChannel(user.id, async (signal: CallSignal) => {
       if (signal.type === 'offer') {
         if (callStateRef.current !== 'idle') {
-          sendCallSignal(signal.from, { type: 'missed', from: user.id, to: signal.from, conversationId: signal.conversationId })
+          await sendCallSignal(signal.from, { type: 'missed', from: user.id, to: signal.from, conversationId: signal.conversationId })
           return
         }
         callConvIdRef.current = signal.conversationId
@@ -539,7 +539,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
-        (candidate) => sendCallSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, conversationId: convId, candidate }),
+        async (candidate) => {
+          await sendCallSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, conversationId: convId, candidate })
+        },
         (state) => {
           if (state === 'disconnected' || state === 'failed') {
             if (callStateRef.current === 'connected') endCallInternal()
@@ -551,7 +553,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      sendCallSignal(otherId, { type: 'offer', from: user.id, to: otherId, conversationId: convId, sdp: offer.sdp! })
+      await sendCallSignal(otherId, { type: 'offer', from: user.id, to: otherId, conversationId: convId, sdp: offer.sdp! })
     } catch (e) {
       console.error('Call error:', e)
       endCallInternal()
@@ -572,7 +574,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
-        (candidate) => sendCallSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, conversationId: convId, candidate }),
+        async (candidate) => {
+          await sendCallSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, conversationId: convId, candidate })
+        },
         (state) => {
           if (state === 'disconnected' || state === 'failed') {
             if (callStateRef.current === 'connected') endCallInternal()
@@ -587,7 +591,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       await pc.setLocalDescription(answer)
       const leftover = flushIceCandidates(pc, pendingCandidates.current)
       pendingCandidates.current = leftover
-      sendCallSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, conversationId: convId, sdp: answer.sdp! })
+      await sendCallSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, conversationId: convId, sdp: answer.sdp! })
       setCallState('connected')
     } catch (e) {
       console.error('Answer error:', e)
@@ -595,20 +599,20 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     }
   }
 
-  function declineCall() {
+  async function declineCall() {
     if (!user?.id || !incomingCaller) return
     const convId = callConvIdRef.current
-    if (convId) sendCallSignal(incomingCaller, { type: 'end', from: user.id, to: incomingCaller, conversationId: convId })
+    if (convId) await sendCallSignal(incomingCaller, { type: 'end', from: user.id, to: incomingCaller, conversationId: convId })
     setCallState('idle')
     setIncomingCaller(null)
     pendingOfferRef.current = null
   }
 
-  function endCall() {
+  async function endCall() {
     if (!user?.id) return
     const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user.id)
     const convId = callConvIdRef.current || selectedConversation?.id
-    if (target && convId) sendCallSignal(target, { type: 'end', from: user.id, to: target, conversationId: convId })
+    if (target && convId) await sendCallSignal(target, { type: 'end', from: user.id, to: target, conversationId: convId })
     endCallInternal()
   }
 
