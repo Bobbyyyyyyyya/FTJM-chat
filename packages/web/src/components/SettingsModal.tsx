@@ -153,7 +153,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
         localStorage.setItem(THEME_ENABLED_KEY, 'false')
         localStorage.removeItem(THEME_STORAGE_KEY)
       }
-      await updateProfile({
+      await updateProfile(user.id, {
         notification_settings: notif as any,
         use_custom_theme: useCustomTheme,
         custom_theme: theme as any,

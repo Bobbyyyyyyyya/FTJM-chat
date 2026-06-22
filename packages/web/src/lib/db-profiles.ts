@@ -75,13 +75,14 @@ export async function getProfile(userId: string) {
 }
 
 // Update own profile (display_name, bio, photo, settings, theme)
-export async function updateProfile(updates: Partial<Profile>) {
+export async function updateProfile(userId: string, updates: Partial<Profile>) {
   const { data, error } = await supabase
     .from('profiles')
     .update({
       ...updates,
       updated_at: new Date().toISOString(),
     })
+    .eq('id', userId)
     .select()
     .single()
 

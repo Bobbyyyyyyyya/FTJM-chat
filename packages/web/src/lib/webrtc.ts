@@ -68,11 +68,8 @@ function getSendChannel(targetId: string): RealtimeChannel {
 }
 
 export function sendCallSignal(targetId: string, signal: CallSignal) {
-  getSendChannel(targetId).send({
-    type: 'broadcast',
-    event: 'call_signal',
-    payload: signal,
-  })
+  const ch = getSendChannel(targetId)
+  ;(ch as any).httpSend('call_signal', signal)
 }
 
 export function cleanupSendChannel(targetId: string) {
@@ -110,11 +107,8 @@ export function subscribeToGroupCallChannel(
 }
 
 export function sendGroupCallSignal(roomId: string, signal: CallSignal) {
-  supabase.channel(`group_calls:${roomId}`).send({
-    type: 'broadcast',
-    event: 'group_call_signal',
-    payload: signal,
-  })
+  const ch = supabase.channel(`group_calls:${roomId}`)
+  ;(ch as any).httpSend('group_call_signal', signal)
 }
 
 // ── Media & peer connection ──
