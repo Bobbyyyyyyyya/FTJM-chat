@@ -27,6 +27,7 @@ import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/
 import {
   subscribeToCallChannel,
   sendCallSignal,
+  cleanupSendChannel,
   getLocalStream,
   createPeerConnection,
   cleanupMediaStream,
@@ -506,6 +507,8 @@ export default function ChatPage() {
   }, [callState, callRemoteName, callVideo])
 
   function endCallInternal() {
+    const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user?.id)
+    if (target) cleanupSendChannel(target)
     pcRef.current?.close()
     pcRef.current = null
     cleanupMediaStream(localStreamRef.current)

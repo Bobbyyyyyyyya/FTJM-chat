@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
@@ -20,6 +21,8 @@ export interface CallSignal {
 
 type SignalHandler = (signal: CallSignal) => void
 
+// ── Receive channel (always listening on own UID) ──
+
 export function subscribeToCallChannel(
   userId: string,
   handler: SignalHandler,
@@ -32,12 +35,60 @@ export function subscribeToCallChannel(
     .on('broadcast', { event: 'call_signal' }, ({ payload }) => {
       handler(payload as CallSignal)
     })
-    .subscribe()
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error(`[call] Receive channel error for ${userId}`)
+      }
+    })
 
   return () => {
     channel.unsubscribe()
   }
 }
+
+// ── Send channels (one per target, created on demand) ──
+
+const sendChannels = new Map<string, RealtimeChannel>()
+
+function getSendChannel(targetId: string): RealtimeChannel {
+  let ch = sendChannels.get(targetId)
+  if (ch) return ch
+
+  ch = supabase.channel(`calls:${targetId}`, {
+    config: { broadcast: { self: false } },
+  })
+  ch.subscribe((status) => {
+    if (status === 'CHANNEL_ERROR') {
+      console.error(`[call] Send channel error for ${targetId}`)
+      sendChannels.delete(targetId)
+    }
+  })
+  sendChannels.set(targetId, ch)
+  return ch
+}
+
+export function sendCallSignal(targetId: string, signal: CallSignal) {
+  getSendChannel(targetId).send({
+    type: 'broadcast',
+    event: 'call_signal',
+    payload: signal,
+  })
+}
+
+export function cleanupSendChannel(targetId: string) {
+  const ch = sendChannels.get(targetId)
+  if (ch) {
+    ch.unsubscribe()
+    sendChannels.delete(targetId)
+  }
+}
+
+export function cleanupAllSendChannels() {
+  sendChannels.forEach((ch) => ch.unsubscribe())
+  sendChannels.clear()
+}
+
+// ── Group call support ──
 
 export function subscribeToGroupCallChannel(
   roomId: string,
@@ -58,14 +109,6 @@ export function subscribeToGroupCallChannel(
   }
 }
 
-export function sendCallSignal(targetId: string, signal: CallSignal) {
-  supabase.channel(`calls:${targetId}`).send({
-    type: 'broadcast',
-    event: 'call_signal',
-    payload: signal,
-  })
-}
-
 export function sendGroupCallSignal(roomId: string, signal: CallSignal) {
   supabase.channel(`group_calls:${roomId}`).send({
     type: 'broadcast',
@@ -73,6 +116,8 @@ export function sendGroupCallSignal(roomId: string, signal: CallSignal) {
     payload: signal,
   })
 }
+
+// ── Media & peer connection ──
 
 export async function getLocalStream(video = false): Promise<MediaStream> {
   const constraints: MediaStreamConstraints = {
