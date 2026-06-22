@@ -99,7 +99,8 @@ export function useVoiceCall(
         })
       },
       (state) => {
-        if (state === 'disconnected' || state === 'failed') {
+        console.log('[call] connection state:', state)
+        if (state === 'failed') {
           if (callStateRef.current === 'connected') cleanup()
         }
       },
@@ -420,12 +421,15 @@ export function useVoiceCall(
         handleCandidate(payload.candidate)
       })
       .on('broadcast', { event: 'ended' }, () => {
+        console.log('[call] ended ontvangen')
         if (activeCallRef.current) cleanup()
       })
       .on('broadcast', { event: 'hangup' }, () => {
+        console.log('[call] hangup ontvangen')
         if (activeCallRef.current) cleanup()
       })
       .on('broadcast', { event: 'call_ended' }, () => {
+        console.log('[call] call_ended ontvangen')
         if (activeCallRef.current) cleanup()
       })
       .subscribe((status) => {
