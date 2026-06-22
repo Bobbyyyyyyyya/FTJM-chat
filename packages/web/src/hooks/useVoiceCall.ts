@@ -312,6 +312,8 @@ export function useVoiceCall(
           pendingCandidates.current = leftover
         })
         .catch((err) => console.error('[call] setRemoteDescription error:', err))
+      setCallState('connected')
+      startTimer()
     }
     function handleCandidate(candidate: unknown) {
       if (!candidate) return

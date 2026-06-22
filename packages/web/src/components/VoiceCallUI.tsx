@@ -46,11 +46,15 @@ export default function VoiceCallUI({
   onSetLayout,
 }: VoiceCallUIProps) {
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream
+    }
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream
     }
   }, [remoteStream])
 
@@ -68,7 +72,21 @@ export default function VoiceCallUI({
   const isCaller = activeCall.callerId === activeCall.receiverId // roughly, depends on context
 
   return (
-    <AnimatePresence>
+    <>
+      {/* Remote audio/video (always mounted when connected, so audio keeps playing) */}
+      {isConnected && remoteStream && (
+        activeCall.isVideo ? (
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="fixed inset-0 w-full h-full object-cover z-[199]"
+          />
+        ) : (
+          <audio ref={remoteAudioRef} autoPlay playsInline />
+        )
+      )}
+      <AnimatePresence>
       {layout === 'large' ? (
         <motion.div
           initial={{ opacity: 0 }}
@@ -76,15 +94,6 @@ export default function VoiceCallUI({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[200] bg-[#07070d] flex flex-col items-center justify-between p-8 overflow-hidden select-none"
         >
-          {/* Remote video (fullscreen when video call) */}
-          {isConnected && activeCall.isVideo && remoteStream && (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover z-0"
-            />
-          )}
 
           {/* Ambient glow */}
           <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -285,5 +294,6 @@ export default function VoiceCallUI({
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   )
 }
