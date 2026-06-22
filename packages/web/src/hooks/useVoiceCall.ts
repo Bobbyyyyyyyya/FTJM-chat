@@ -302,6 +302,10 @@ export function useVoiceCall(
 
     function handleAnswer(sdp: string) {
       if (!pcRef.current || !sdp) return
+      if (pcRef.current.signalingState !== 'have-local-offer') {
+        console.log('[call] skip answer, wrong state:', pcRef.current.signalingState)
+        return
+      }
       pcRef.current.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }))
         .then(() => {
           const leftover = flushIceCandidates(pcRef.current!, pendingCandidates.current)
