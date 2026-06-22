@@ -1,5 +1,4 @@
-import { sendCallSignal, pollCallSignals, deleteCallSignal } from './db-conversations'
-import type { Message } from './types'
+import { supabase } from './supabase'
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
@@ -14,89 +13,65 @@ export interface CallSignal {
   type: 'offer' | 'answer' | 'ice-candidate' | 'end' | 'missed' | 'ringing'
   from: string
   to: string
+  conversationId: string
   sdp?: string
   candidate?: RTCIceCandidateInit
 }
 
 type SignalHandler = (signal: CallSignal) => void
 
-let signalHandler: SignalHandler | null = null
-let pollTimer: ReturnType<typeof setInterval> | null = null
-let lastPollTime: string | null = null
-let pollConversationId: string | null = null
-let pollUserId: string | null = null
-
-export function startPollingSignals(
-  conversationId: string,
+export function subscribeToCallChannel(
   userId: string,
   handler: SignalHandler,
 ) {
-  signalHandler = handler
-  pollConversationId = conversationId
-  pollUserId = userId
+  const channel = supabase.channel(`calls:${userId}`, {
+    config: { broadcast: { self: false } },
+  })
 
-  const poll = async () => {
-    if (!pollConversationId) return
-    const msgs = await pollCallSignals(pollConversationId, lastPollTime)
-    for (const msg of msgs) {
-      if (msg.sender_id === userId) continue
-      const signal = parseSignalMessage(msg.text)
-      if (signal) {
-        if (!lastPollTime || msg.created_at > lastPollTime) {
-          lastPollTime = msg.created_at
-        }
-        handler(signal)
-        await deleteCallSignal(msg.id).catch(() => {})
-      }
-    }
-    if (msgs.length > 0) {
-      // Do another round immediately in case there are more
-      setTimeout(poll, 100)
-    }
-  }
-
-  // Initial poll
-  poll()
-
-  // Poll every 500ms for new signals
-  pollTimer = setInterval(poll, 500)
+  channel
+    .on('broadcast', { event: 'call_signal' }, ({ payload }) => {
+      handler(payload as CallSignal)
+    })
+    .subscribe()
 
   return () => {
-    if (pollTimer) clearInterval(pollTimer)
-    pollTimer = null
-    signalHandler = null
-    pollConversationId = null
-    pollUserId = null
-    lastPollTime = null
+    channel.unsubscribe()
   }
 }
 
-export function sendSignalViaMessages(
-  conversationId: string,
-  senderId: string,
-  signal: CallSignal,
+export function subscribeToGroupCallChannel(
+  roomId: string,
+  handler: SignalHandler,
 ) {
-  sendCallSignal(conversationId, senderId, signal)
-}
+  const channel = supabase.channel(`group_calls:${roomId}`, {
+    config: { broadcast: { self: false } },
+  })
 
-const CALL_PREFIX = '__call__'
+  channel
+    .on('broadcast', { event: 'group_call_signal' }, ({ payload }) => {
+      handler(payload as CallSignal)
+    })
+    .subscribe()
 
-function parseSignalMessage(text: string): CallSignal | null {
-  if (!text.startsWith(CALL_PREFIX)) return null
-  try {
-    return JSON.parse(text.slice(CALL_PREFIX.length)) as CallSignal
-  } catch {
-    return null
+  return () => {
+    channel.unsubscribe()
   }
 }
 
-export function cleanupSignals() {
-  if (pollTimer) clearInterval(pollTimer)
-  pollTimer = null
-  signalHandler = null
-  pollConversationId = null
-  pollUserId = null
-  lastPollTime = null
+export function sendCallSignal(targetId: string, signal: CallSignal) {
+  supabase.channel(`calls:${targetId}`).send({
+    type: 'broadcast',
+    event: 'call_signal',
+    payload: signal,
+  })
+}
+
+export function sendGroupCallSignal(roomId: string, signal: CallSignal) {
+  supabase.channel(`group_calls:${roomId}`).send({
+    type: 'broadcast',
+    event: 'group_call_signal',
+    payload: signal,
+  })
 }
 
 export async function getLocalStream(video = false): Promise<MediaStream> {

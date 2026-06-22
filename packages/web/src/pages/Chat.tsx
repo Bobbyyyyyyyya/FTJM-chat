@@ -25,13 +25,12 @@ import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
 import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
 import {
-  startPollingSignals,
-  sendSignalViaMessages,
+  subscribeToCallChannel,
+  sendCallSignal,
   getLocalStream,
   createPeerConnection,
   cleanupMediaStream,
   flushIceCandidates,
-  cleanupSignals,
   type CallSignal,
 } from '@/lib/webrtc'
 import { isCallSignal } from '@/lib/db'
@@ -100,16 +99,16 @@ export default function ChatPage() {
   callStateRef.current = callState
   const callConvIdRef = useRef<string | null>(null)
 
-  // Listen for incoming call signals via messages table polling
+  // Listen for incoming call signals via Supabase Realtime Broadcast
   useEffect(() => {
-    if (!user?.id || !selectedConvId) return
-    const stop = startPollingSignals(selectedConvId, user.id, async (signal: CallSignal) => {
+    if (!user?.id) return
+    const unsubscribe = subscribeToCallChannel(user.id, async (signal: CallSignal) => {
       if (signal.type === 'offer') {
         if (callStateRef.current !== 'idle') {
-          sendSignalViaMessages(selectedConvId, user.id, { type: 'missed', from: user.id, to: signal.from })
+          sendCallSignal(signal.from, { type: 'missed', from: user.id, to: signal.from, conversationId: signal.conversationId })
           return
         }
-        callConvIdRef.current = selectedConvId
+        callConvIdRef.current = signal.conversationId
         setIncomingCaller(signal.from)
         pendingOfferRef.current = signal.sdp || null
         setCallVideo(signal.sdp?.includes('m=video') || false)
@@ -136,8 +135,8 @@ export default function ChatPage() {
         setCallState('idle')
       }
     })
-    return () => { stop(); cleanupSignals() }
-  }, [user?.id, selectedConvId])
+    return unsubscribe
+  }, [user?.id])
 
   // Load custom theme from localStorage on mount
   useEffect(() => {
@@ -524,7 +523,8 @@ export default function ChatPage() {
     if (!user?.id || !selectedConversation) return
     const otherId = selectedConversation.participants!.find((id: string) => id !== user.id)
     if (!otherId) return
-    callConvIdRef.current = selectedConversation.id
+    const convId = selectedConversation.id
+    callConvIdRef.current = convId
     setCallVideo(video)
     setCallState('calling')
     setCallRemoteName(getParticipantInfo(otherId).display_name)
@@ -536,7 +536,7 @@ export default function ChatPage() {
 
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
-        (candidate) => sendSignalViaMessages(selectedConversation.id, user.id, { type: 'ice-candidate', from: user.id, to: otherId, candidate }),
+        (candidate) => sendCallSignal(otherId, { type: 'ice-candidate', from: user.id, to: otherId, conversationId: convId, candidate }),
         (state) => {
           if (state === 'disconnected' || state === 'failed') {
             if (callStateRef.current === 'connected') endCallInternal()
@@ -548,7 +548,7 @@ export default function ChatPage() {
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      sendSignalViaMessages(selectedConversation.id, user.id, { type: 'offer', from: user.id, to: otherId, sdp: offer.sdp! })
+      sendCallSignal(otherId, { type: 'offer', from: user.id, to: otherId, conversationId: convId, sdp: offer.sdp! })
     } catch (e) {
       console.error('Call error:', e)
       endCallInternal()
@@ -569,7 +569,7 @@ export default function ChatPage() {
 
       const pc = createPeerConnection(
         (rs) => setRemoteStream(rs),
-        (candidate) => sendSignalViaMessages(convId, user.id, { type: 'ice-candidate', from: user.id, to: incomingCaller, candidate }),
+        (candidate) => sendCallSignal(incomingCaller, { type: 'ice-candidate', from: user.id, to: incomingCaller, conversationId: convId, candidate }),
         (state) => {
           if (state === 'disconnected' || state === 'failed') {
             if (callStateRef.current === 'connected') endCallInternal()
@@ -584,7 +584,7 @@ export default function ChatPage() {
       await pc.setLocalDescription(answer)
       const leftover = flushIceCandidates(pc, pendingCandidates.current)
       pendingCandidates.current = leftover
-      sendSignalViaMessages(convId, user.id, { type: 'answer', from: user.id, to: incomingCaller, sdp: answer.sdp! })
+      sendCallSignal(incomingCaller, { type: 'answer', from: user.id, to: incomingCaller, conversationId: convId, sdp: answer.sdp! })
       setCallState('connected')
     } catch (e) {
       console.error('Answer error:', e)
@@ -595,7 +595,7 @@ export default function ChatPage() {
   function declineCall() {
     if (!user?.id || !incomingCaller) return
     const convId = callConvIdRef.current
-    if (convId) sendSignalViaMessages(convId, user.id, { type: 'end', from: user.id, to: incomingCaller })
+    if (convId) sendCallSignal(incomingCaller, { type: 'end', from: user.id, to: incomingCaller, conversationId: convId })
     setCallState('idle')
     setIncomingCaller(null)
     pendingOfferRef.current = null
@@ -605,7 +605,7 @@ export default function ChatPage() {
     if (!user?.id) return
     const target = incomingCaller || selectedConversation?.participants?.find((id: string) => id !== user.id)
     const convId = callConvIdRef.current || selectedConversation?.id
-    if (target && convId) sendSignalViaMessages(convId, user.id, { type: 'end', from: user.id, to: target })
+    if (target && convId) sendCallSignal(target, { type: 'end', from: user.id, to: target, conversationId: convId })
     endCallInternal()
   }
 
