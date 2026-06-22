@@ -81,10 +81,21 @@ export function useVoiceCall(
     const pc = createPeerConnection(
       (rs) => setRemoteStream(rs),
       async (candidate) => {
+        const msgId = `candidate_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
         await channel.send({
           type: 'broadcast',
           event: 'ice_candidate',
-          payload: { roomId, candidate, from: userId, to: targetId },
+          payload: {
+            candidate: {
+              candidate: candidate.candidate,
+              sdpMLineIndex: candidate.sdpMLineIndex,
+              sdpMid: candidate.sdpMid,
+              usernameFragment: candidate.usernameFragment,
+            },
+            msgId,
+            senderId: userId,
+            targetId,
+          },
         })
       },
       (state) => {
@@ -186,10 +197,17 @@ export function useVoiceCall(
         pendingCandidates.current = leftover
         const answer = await pcRef.current.createAnswer()
         await pcRef.current.setLocalDescription(answer)
+        const msgId = `answer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
         await ch.send({
           type: 'broadcast',
           event: 'answer',
-          payload: { roomId: call.roomId, sdp: answer.sdp, from: userId, to: call.callerId },
+          payload: {
+            sdp: answer.sdp,
+            msgId,
+            senderId: userId,
+            targetId: call.callerId,
+            answer: { sdp: answer.sdp, type: 'answer' },
+          },
         })
       }
 
@@ -198,19 +216,25 @@ export function useVoiceCall(
     })
   }
 
+  function sendHangup(ch: RealtimeChannel, roomId: string) {
+    const ts = Date.now()
+    const r = Math.random().toString(36).substring(2, 7)
+    ch.send({ type: 'broadcast', event: 'ended', payload: { msgId: `ended_${ts}_${r}`, senderId: userId } })
+    ch.send({ type: 'broadcast', event: 'hangup', payload: { msgId: `hangup_${ts}_${r}`, senderId: userId } })
+    ch.send({ type: 'broadcast', event: 'call_ended', payload: { msgId: `call_ended_${ts}_${r}`, senderId: userId } })
+  }
+
   function endCall() {
     const call = activeCallRef.current
     if (!call || !userId) return
-    const target = call.callerId === userId ? call.receiverId : call.callerId
     if (outboundRef.current) {
-      outboundRef.current.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-      outboundRef.current.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+      sendHangup(outboundRef.current, call.roomId)
     } else {
+      const target = call.callerId === userId ? call.receiverId : call.callerId
       const ch = supabase.channel(`calls:${target}`, { config: { broadcast: { self: false } } })
       ch.subscribe((status) => {
         if (status !== 'SUBSCRIBED') return
-        ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-        ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+        sendHangup(ch, call.roomId)
         ch.unsubscribe()
       })
     }
@@ -225,8 +249,7 @@ export function useVoiceCall(
     })
     ch.subscribe((status) => {
       if (status !== 'SUBSCRIBED') return
-      ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-      ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+      sendHangup(ch, call.roomId)
       ch.unsubscribe()
     })
     setCallState('idle')
