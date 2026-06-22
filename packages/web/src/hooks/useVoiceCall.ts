@@ -276,6 +276,25 @@ export function useVoiceCall(
       config: { broadcast: { self: false } },
     })
 
+    function handleAnswer(sdp: string) {
+      if (!pcRef.current || !sdp) return
+      pcRef.current.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }))
+        .then(() => {
+          const leftover = flushIceCandidates(pcRef.current!, pendingCandidates.current)
+          pendingCandidates.current = leftover
+        })
+        .catch((err) => console.error('[call] setRemoteDescription error:', err))
+    }
+    function handleCandidate(candidate: unknown) {
+      if (!candidate) return
+      if (pcRef.current && pcRef.current.remoteDescription) {
+        pcRef.current.addIceCandidate(new RTCIceCandidate(candidate as RTCIceCandidateInit))
+          .catch((err) => console.warn('[call] addIceCandidate error:', err))
+      } else {
+        pendingCandidates.current.push(candidate as RTCIceCandidateInit)
+      }
+    }
+
     channel
       .on('broadcast', { event: '*' }, ({ payload, event: eventName }) => {
         console.log(`[call] broadcast event ontvangen: "${eventName}"`, payload)
@@ -358,51 +377,24 @@ export function useVoiceCall(
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
         if (!activeCallRef.current) return
         const sdp = payload.sdp || (payload.answer as Record<string, unknown>)?.sdp as string
-        if (pcRef.current && sdp) {
-          await pcRef.current.setRemoteDescription(
-            new RTCSessionDescription({ type: 'answer', sdp }),
-          )
-          const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
-          pendingCandidates.current = leftover
-        }
+        handleAnswer(sdp)
       })
       .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
         if (!activeCallRef.current) return
         const sdp = (payload.answer as Record<string, unknown>)?.sdp as string
-        if (pcRef.current && sdp) {
-          await pcRef.current.setRemoteDescription(
-            new RTCSessionDescription({ type: 'answer', sdp }),
-          )
-          const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
-          pendingCandidates.current = leftover
-        }
+        handleAnswer(sdp)
       })
       .on('broadcast', { event: 'ice_candidate' }, async ({ payload }) => {
         if (!activeCallRef.current) return
-        const candidate = payload.candidate
-        if (pcRef.current && pcRef.current.remoteDescription) {
-          if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
-        } else if (candidate) {
-          pendingCandidates.current.push(candidate)
-        }
+        handleCandidate(payload.candidate)
       })
       .on('broadcast', { event: 'candidate' }, async ({ payload }) => {
         if (!activeCallRef.current) return
-        const candidate = payload.candidate
-        if (pcRef.current && pcRef.current.remoteDescription) {
-          if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
-        } else if (candidate) {
-          pendingCandidates.current.push(candidate)
-        }
+        handleCandidate(payload.candidate)
       })
       .on('broadcast', { event: 'call_candidate' }, async ({ payload }) => {
         if (!activeCallRef.current) return
-        const candidate = payload.candidate
-        if (pcRef.current && pcRef.current.remoteDescription) {
-          if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
-        } else if (candidate) {
-          pendingCandidates.current.push(candidate)
-        }
+        handleCandidate(payload.candidate)
       })
       .on('broadcast', { event: 'ended' }, () => {
         if (activeCallRef.current) cleanup()
