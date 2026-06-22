@@ -6,6 +6,7 @@ import {
   cleanupMediaStream,
   flushIceCandidates,
 } from '@/lib/webrtc'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export type CallState = 'idle' | 'calling' | 'ringing' | 'connected'
 
@@ -36,9 +37,13 @@ export function useVoiceCall(
   const localStreamRef = useRef<MediaStream | null>(null)
   const activeCallRef = useRef<CallData | null>(null)
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([])
+  const pendingOfferRef = useRef<string | null>(null)
+  const outboundChannelRef = useRef<RealtimeChannel | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const callStateRef = useRef<CallState>('idle')
 
   activeCallRef.current = activeCall
+  callStateRef.current = callState
 
   async function getMedia(isVideo: boolean): Promise<MediaStream | null> {
     try {
@@ -66,6 +71,17 @@ export function useVoiceCall(
     }
   }
 
+  async function sendViaChannel(targetUserId: string, event: string, payload: Record<string, unknown>) {
+    const ch = supabase.channel(`calls:${targetUserId}`, {
+      config: { broadcast: { self: false, ack: true } },
+    })
+    ch.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await ch.send({ type: 'broadcast', event, payload })
+      }
+    })
+  }
+
   async function startCall(
     targetUserId: string,
     targetName: string,
@@ -86,6 +102,7 @@ export function useVoiceCall(
     }
 
     setActiveCall(callPayload)
+
     const media = await getMedia(isVideo)
     if (!media) {
       cleanup()
@@ -95,6 +112,8 @@ export function useVoiceCall(
     const outboundChannel = supabase.channel(`calls:${targetUserId}`, {
       config: { broadcast: { self: false, ack: true } },
     })
+    outboundChannelRef.current = outboundChannel
+
     outboundChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await outboundChannel.send({
@@ -102,7 +121,8 @@ export function useVoiceCall(
           event: 'incoming_call',
           payload: callPayload,
         })
-        await setupPeerConnection(targetUserId, roomId, media)
+
+        setupPeerConnection(targetUserId, roomId, media)
 
         const offer = await pcRef.current!.createOffer()
         await pcRef.current!.setLocalDescription(offer)
@@ -118,6 +138,8 @@ export function useVoiceCall(
   async function acceptCall() {
     const call = activeCallRef.current
     if (!call || !userId) return
+    if (callStateRef.current !== 'ringing') return
+
     setCallState('calling')
 
     const media = await getMedia(call.isVideo)
@@ -129,6 +151,8 @@ export function useVoiceCall(
     const outboundChannel = supabase.channel(`calls:${call.callerId}`, {
       config: { broadcast: { self: false, ack: true } },
     })
+    outboundChannelRef.current = outboundChannel
+
     outboundChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await outboundChannel.send({
@@ -137,31 +161,39 @@ export function useVoiceCall(
           payload: { roomId: call.roomId },
         })
 
-        await setupPeerConnection(call.callerId, call.roomId, media)
+        setupPeerConnection(call.callerId, call.roomId, media)
+
+        const offerSdp = pendingOfferRef.current
+        if (pcRef.current && offerSdp) {
+          await pcRef.current.setRemoteDescription(
+            new RTCSessionDescription({ type: 'offer', sdp: offerSdp }),
+          )
+          const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
+          pendingCandidates.current = leftover
+          const answer = await pcRef.current.createAnswer()
+          await pcRef.current.setLocalDescription(answer)
+          await outboundChannel.send({
+            type: 'broadcast',
+            event: 'answer',
+            payload: { roomId: call.roomId, sdp: answer.sdp, from: userId, to: call.callerId },
+          })
+        }
+
         setCallState('connected')
         startTimer()
       }
     })
   }
 
-  async function setupPeerConnection(targetId: string, roomId: string, stream: MediaStream) {
+  function setupPeerConnection(targetId: string, roomId: string, stream: MediaStream) {
     const pc = createPeerConnection(
-      (rs) => {
-        setRemoteStream(rs)
-      },
+      (rs) => setRemoteStream(rs),
       async (candidate) => {
-        const ch = supabase.channel(`calls:${targetId}`, {
-          config: { broadcast: { self: false, ack: true } },
-        })
-        await ch.send({
-          type: 'broadcast',
-          event: 'ice_candidate',
-          payload: { roomId, candidate, from: userId, to: targetId },
-        })
+        sendViaChannel(targetId, 'ice_candidate', { roomId, candidate, from: userId, to: targetId })
       },
       (state) => {
         if (state === 'disconnected' || state === 'failed') {
-          cleanup()
+          if (callStateRef.current === 'connected') cleanup()
         }
       },
     )
@@ -173,26 +205,14 @@ export function useVoiceCall(
     const call = activeCallRef.current
     if (!call || !userId) return
     const target = call.callerId === userId ? call.receiverId : call.callerId
-    supabase.channel(`calls:${target}`, {
-      config: { broadcast: { self: false, ack: true } },
-    }).send({
-      type: 'broadcast',
-      event: 'call_ended',
-      payload: { roomId: call.roomId },
-    })
+    sendViaChannel(target, 'call_ended', { roomId: call.roomId })
     cleanup()
   }
 
   function declineCall() {
     const call = activeCallRef.current
     if (!call || !userId) return
-    supabase.channel(`calls:${call.callerId}`, {
-      config: { broadcast: { self: false, ack: true } },
-    }).send({
-      type: 'broadcast',
-      event: 'call_ended',
-      payload: { roomId: call.roomId },
-    })
+    sendViaChannel(call.callerId, 'call_ended', { roomId: call.roomId })
     setCallState('idle')
     setActiveCall(null)
   }
@@ -203,12 +223,14 @@ export function useVoiceCall(
     pcRef.current = null
     cleanupMediaStream(localStreamRef.current)
     localStreamRef.current = null
+    outboundChannelRef.current = null
     setRemoteStream(null)
     setLocalStream(null)
     setCallState('idle')
     setActiveCall(null)
     setDuration(0)
     pendingCandidates.current = []
+    pendingOfferRef.current = null
   }
 
   function toggleMute() {
@@ -231,7 +253,6 @@ export function useVoiceCall(
     }
   }
 
-  // Listen for incoming calls
   useEffect(() => {
     if (!userId) return
     const channel = supabase.channel(`calls:${userId}`, {
@@ -254,21 +275,8 @@ export function useVoiceCall(
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
         const call = activeCallRef.current
         if (!call || payload.roomId !== call.roomId) return
-        if (pcRef.current && payload.sdp) {
-          await pcRef.current.setRemoteDescription(
-            new RTCSessionDescription({ type: 'offer', sdp: payload.sdp }),
-          )
-          const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
-          pendingCandidates.current = leftover
-          const answer = await pcRef.current.createAnswer()
-          await pcRef.current.setLocalDescription(answer)
-          supabase.channel(`calls:${payload.from}`, {
-            config: { broadcast: { self: false, ack: true } },
-          }).send({
-            type: 'broadcast',
-            event: 'answer',
-            payload: { roomId: call.roomId, sdp: answer.sdp, from: userId, to: payload.from },
-          })
+        if (callStateRef.current === 'ringing' && payload.sdp) {
+          pendingOfferRef.current = payload.sdp
         }
       })
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
@@ -293,9 +301,7 @@ export function useVoiceCall(
       })
       .on('broadcast', { event: 'call_ended' }, ({ payload }) => {
         const call = activeCallRef.current
-        if (call && payload.roomId === call.roomId) {
-          cleanup()
-        }
+        if (call && payload.roomId === call.roomId) cleanup()
       })
       .subscribe()
 
