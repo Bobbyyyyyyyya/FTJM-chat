@@ -280,6 +280,37 @@ export function useVoiceCall(
       .on('broadcast', { event: '*' }, ({ payload, event: eventName }) => {
         console.log(`[call] broadcast event ontvangen: "${eventName}"`, payload)
       })
+      .on('broadcast', { event: 'call_offer' }, ({ payload }) => {
+        const data = payload as Record<string, unknown>
+        console.log('[call] call_offer ontvangen:', data.callerName, 'userId:', userId)
+        if (!data.callerId || data.callerId === userId) {
+          console.log('[call] self/skip')
+          return
+        }
+        if (callStateRef.current !== 'idle') {
+          console.log('[call] niet idle (state:', callStateRef.current, '), skip')
+          return
+        }
+        const roomId = (data.roomId as string) || (data.msgId as string) || ''
+        if (!roomId) {
+          console.warn('[call] call_offer zonder roomId/msgId, skip')
+          return
+        }
+        const callData: CallData = {
+          roomId,
+          callerId: data.callerId as string,
+          callerName: data.callerName as string,
+          callerAvatar: data.callerAvatar as string,
+          receiverId: userId,
+          isVideo: (data.isVideo as boolean) || false,
+        }
+        if ((data.offer as Record<string, unknown>)?.sdp) {
+          pendingOfferRef.current = (data.offer as Record<string, unknown>).sdp as string
+        }
+        toast.success(`Inkomend gesprek van: ${data.callerName}`, { duration: 5000 })
+        setActiveCall(callData)
+        setCallState('ringing')
+      })
       .on('broadcast', { event: 'incoming_call' }, ({ payload }) => {
         const data = payload as Record<string, unknown>
         console.log('[call] incoming_call ontvangen:', data.callerName, 'userId:', userId)
@@ -364,6 +395,15 @@ export function useVoiceCall(
           pendingCandidates.current.push(candidate)
         }
       })
+      .on('broadcast', { event: 'call_candidate' }, async ({ payload }) => {
+        if (!activeCallRef.current) return
+        const candidate = payload.candidate
+        if (pcRef.current && pcRef.current.remoteDescription) {
+          if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
+        } else if (candidate) {
+          pendingCandidates.current.push(candidate)
+        }
+      })
       .on('broadcast', { event: 'ended' }, () => {
         if (activeCallRef.current) cleanup()
       })
@@ -374,6 +414,7 @@ export function useVoiceCall(
         if (activeCallRef.current) cleanup()
       })
       .subscribe((status) => {
+        console.log('[call] listener channel status:', status)
         if (status === 'CHANNEL_ERROR') {
           console.error('❌ Call listener channel error')
         }
