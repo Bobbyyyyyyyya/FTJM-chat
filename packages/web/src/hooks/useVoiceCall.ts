@@ -202,14 +202,18 @@ export function useVoiceCall(
     const call = activeCallRef.current
     if (!call || !userId) return
     const target = call.callerId === userId ? call.receiverId : call.callerId
-    const ch = supabase.channel(`calls:${target}`, {
-      config: { broadcast: { self: false } },
-    })
-    ch.subscribe(async (status) => {
-      if (status !== 'SUBSCRIBED') return
-      await ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-      await ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
-    })
+    if (outboundRef.current) {
+      outboundRef.current.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
+      outboundRef.current.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+    } else {
+      const ch = supabase.channel(`calls:${target}`, { config: { broadcast: { self: false } } })
+      ch.subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return
+        ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
+        ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+        ch.unsubscribe()
+      })
+    }
     cleanup()
   }
 
@@ -219,10 +223,11 @@ export function useVoiceCall(
     const ch = supabase.channel(`calls:${call.callerId}`, {
       config: { broadcast: { self: false } },
     })
-    ch.subscribe(async (status) => {
+    ch.subscribe((status) => {
       if (status !== 'SUBSCRIBED') return
-      await ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
-      await ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+      ch.send({ type: 'broadcast', event: 'ended', payload: { roomId: call.roomId } })
+      ch.send({ type: 'broadcast', event: 'hangup', payload: { roomId: call.roomId } })
+      ch.unsubscribe()
     })
     setCallState('idle')
     setActiveCall(null)
@@ -276,20 +281,36 @@ export function useVoiceCall(
         console.log(`[call] broadcast event ontvangen: "${eventName}"`, payload)
       })
       .on('broadcast', { event: 'incoming_call' }, ({ payload }) => {
-        const data = payload as CallData
-        console.log('[call] incoming_call ontvangen:', data.callerName, 'receiverId:', data.receiverId, 'userId:', userId)
-        if (data.receiverId !== userId) {
-          console.log('[call] receiverId mismatch, skip')
+        const data = payload as Record<string, unknown>
+        console.log('[call] incoming_call ontvangen:', data.callerName, 'userId:', userId)
+        if (!data.callerId || data.callerId === userId) {
+          console.log('[call] self/skip')
           return
         }
         if (callStateRef.current !== 'idle') {
           console.log('[call] niet idle (state:', callStateRef.current, '), skip')
           return
         }
-        toast.success(`Inkomend gesprek gedetecteerd van: ${data.callerName}`, {
+        const roomId = (data.roomId as string) || (data.msgId as string) || ''
+        if (!roomId) {
+          console.warn('[call] incoming_call zonder roomId/msgId, skip')
+          return
+        }
+        const callData: CallData = {
+          roomId,
+          callerId: data.callerId as string,
+          callerName: data.callerName as string,
+          callerAvatar: data.callerAvatar as string,
+          receiverId: userId,
+          isVideo: (data.isVideo as boolean) || false,
+        }
+        if ((data.offer as Record<string, unknown>)?.sdp) {
+          pendingOfferRef.current = (data.offer as Record<string, unknown>).sdp as string
+        }
+        toast.success(`Inkomend gesprek van: ${data.callerName}`, {
           duration: 5000,
         })
-        setActiveCall(data)
+        setActiveCall(callData)
         setCallState('ringing')
       })
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
@@ -317,10 +338,23 @@ export function useVoiceCall(
       .on('broadcast', { event: 'ice_candidate' }, async ({ payload }) => {
         const call = activeCallRef.current
         if (!call || payload.roomId !== call.roomId) return
+        const candidate = payload.candidate
         if (pcRef.current && pcRef.current.remoteDescription) {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {})
-        } else if (payload.candidate) {
-          pendingCandidates.current.push(payload.candidate)
+          if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
+        } else if (candidate) {
+          pendingCandidates.current.push(candidate)
+        }
+      })
+      .on('broadcast', { event: 'candidate' }, async ({ payload }) => {
+        const call = activeCallRef.current
+        if (!call) return
+        const roomId = payload.roomId || call.roomId
+        if (roomId !== call.roomId) return
+        const candidate = payload.candidate
+        if (pcRef.current && pcRef.current.remoteDescription) {
+          if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
+        } else if (candidate) {
+          pendingCandidates.current.push(candidate)
         }
       })
       .on('broadcast', { event: 'ended' }, ({ payload }) => {
