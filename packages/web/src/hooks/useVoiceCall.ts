@@ -325,19 +325,29 @@ export function useVoiceCall(
         }
       })
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
-        const call = activeCallRef.current
-        if (!call || payload.roomId !== call.roomId) return
-        if (pcRef.current && payload.sdp) {
+        if (!activeCallRef.current) return
+        const sdp = payload.sdp || (payload.answer as Record<string, unknown>)?.sdp as string
+        if (pcRef.current && sdp) {
           await pcRef.current.setRemoteDescription(
-            new RTCSessionDescription({ type: 'answer', sdp: payload.sdp }),
+            new RTCSessionDescription({ type: 'answer', sdp }),
+          )
+          const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
+          pendingCandidates.current = leftover
+        }
+      })
+      .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
+        if (!activeCallRef.current) return
+        const sdp = (payload.answer as Record<string, unknown>)?.sdp as string
+        if (pcRef.current && sdp) {
+          await pcRef.current.setRemoteDescription(
+            new RTCSessionDescription({ type: 'answer', sdp }),
           )
           const leftover = flushIceCandidates(pcRef.current, pendingCandidates.current)
           pendingCandidates.current = leftover
         }
       })
       .on('broadcast', { event: 'ice_candidate' }, async ({ payload }) => {
-        const call = activeCallRef.current
-        if (!call || payload.roomId !== call.roomId) return
+        if (!activeCallRef.current) return
         const candidate = payload.candidate
         if (pcRef.current && pcRef.current.remoteDescription) {
           if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
@@ -346,10 +356,7 @@ export function useVoiceCall(
         }
       })
       .on('broadcast', { event: 'candidate' }, async ({ payload }) => {
-        const call = activeCallRef.current
-        if (!call) return
-        const roomId = payload.roomId || call.roomId
-        if (roomId !== call.roomId) return
+        if (!activeCallRef.current) return
         const candidate = payload.candidate
         if (pcRef.current && pcRef.current.remoteDescription) {
           if (candidate) await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {})
@@ -357,13 +364,14 @@ export function useVoiceCall(
           pendingCandidates.current.push(candidate)
         }
       })
-      .on('broadcast', { event: 'ended' }, ({ payload }) => {
-        const call = activeCallRef.current
-        if (call && payload.roomId === call.roomId) cleanup()
+      .on('broadcast', { event: 'ended' }, () => {
+        if (activeCallRef.current) cleanup()
       })
-      .on('broadcast', { event: 'hangup' }, ({ payload }) => {
-        const call = activeCallRef.current
-        if (call && payload.roomId === call.roomId) cleanup()
+      .on('broadcast', { event: 'hangup' }, () => {
+        if (activeCallRef.current) cleanup()
+      })
+      .on('broadcast', { event: 'call_ended' }, () => {
+        if (activeCallRef.current) cleanup()
       })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR') {
