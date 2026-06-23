@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { useAuthStore } from '@/hooks/useAuth'
 import {
   getConversations,
@@ -747,13 +748,18 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                     <p className="text-muted text-sm mt-1">Send the first message!</p>
                   </div>
                 )}
-                {[...messages].filter((m) => !isCallSignal(m.text)).reverse().map((msg) => {
+                {[...messages].filter((m) => !isCallSignal(m.text)).reverse().map((msg, index) => {
                   const isMine = msg.sender_id === user?.id
                   const participant = getParticipantInfo(msg.sender_id)
                   const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                   const isEditing = editingId?.type === 'dm' && editingId.id === msg.id
                   return (
-                    <div key={msg.id} className={`flex gap-3 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
+                      className={`flex gap-3 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
                       {!isMine && (
                         <button onClick={() => openProfile(msg.sender_id, participant.display_name, participant.photo_url)}
                           className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
@@ -828,18 +834,28 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           ) : getAvatarInitials(user?.display_name || 'You')}
                         </button>
                       )}
-                    </div>
+                    </motion.div>
                   )
                 })}
                 {typingUsers.length > 0 && (
-                  <div className="flex items-center gap-2 text-muted text-sm">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex items-center gap-2 text-muted text-sm"
+                  >
                     <div className="flex gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      {[0, 0.15, 0.3].map((delay) => (
+                        <motion.span
+                          key={delay}
+                          className="w-1.5 h-1.5 rounded-full bg-accent/60"
+                          animate={{ y: [0, -6, 0] }}
+                          transition={{ duration: 0.6, repeat: Infinity, delay, ease: 'easeInOut' }}
+                        />
+                      ))}
                     </div>
                     {typingUsers.map((id) => getParticipantInfo(id).display_name).join(', ')} typing...
-                  </div>
+                  </motion.div>
                 )}
               </>
             ) : (
@@ -866,13 +882,18 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   <p className="text-muted text-sm mt-1">Be the first to post in general chat</p>
                 </div>
               ) : (
-                generalChat.map((post) => {
+                generalChat.map((post, index) => {
                   const isMine = post.author_id === user?.id
                   const authorInfo = getParticipantInfo(post.author_id)
                   const authorName = isMine ? 'You' : authorInfo.display_name
                   const isEditing = editingId?.type === 'general' && editingId.id === post.id
                   return (
-                    <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
+                    <motion.div
+                      key={post.id}
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
+                      className="chat-bubble-other !rounded-3xl p-5">
                       <div className="flex items-center gap-3 mb-3">
                         <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
                           className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
@@ -935,7 +956,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           <MessageEmbeds text={maybeDecryptText(post.content)} />
                         </>
                       )}
-                    </div>
+                    </motion.div>
                   )
                 })
               )}
