@@ -164,19 +164,15 @@ export async function updateMessage(
 
 // Delete a message (soft delete)
 export async function deleteMessage(messageId: string) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('messages')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', messageId)
-    .select()
-    .single()
 
   if (error) {
     console.error('❌ Error deleting message:', error)
     throw error
   }
-
-  return data as Message
 }
 
 // Update typing status
