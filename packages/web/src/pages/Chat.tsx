@@ -74,6 +74,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [editingId, setEditingId] = useState<{type: 'dm' | 'general', id: string} | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [sending, setSending] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
 
   // Voice call
@@ -305,7 +306,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }, [selectedConvId, user?.id])
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim() || !selectedConvId || !user?.id) return
+    if (!messageInput.trim() || !selectedConvId || !user?.id || sending) return
+    setSending(true)
     try {
       const encryptedText = encryptText(messageInput)
       const newMessage = await sendMessage(selectedConvId, user.id, encryptedText, true)
@@ -315,11 +317,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       await setTypingStatus(selectedConvId, user.id, false)
     } catch (error) {
       console.error('Error sending message:', error)
+    } finally {
+      setSending(false)
     }
   }
 
   const handleSendPost = async () => {
-    if (!messageInput.trim() || !user?.id) return
+    if (!messageInput.trim() || !user?.id || sending) return
+    setSending(true)
     try {
       const encryptedContent = encryptText(messageInput)
       const newPost = await createPost(user.id, encryptedContent)
@@ -327,6 +332,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       setMessageInput('')
     } catch (error) {
       console.error('Error sending post:', error)
+    } finally {
+      setSending(false)
     }
   }
 
@@ -512,8 +519,26 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         {/* Brand */}
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-accent flex items-center justify-center shadow-sm">
-              <span className="text-sm font-bold text-white">F</span>
+            <div className="h-8 w-8 rounded-lg bg-[#0f172a] flex items-center justify-center shadow-sm overflow-hidden">
+              <svg viewBox="0 0 512 512" className="h-5 w-5">
+                <defs>
+                  <linearGradient id="chatAccent" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#2dd4bf"/>
+                    <stop offset="100%" stop-color="#38bdf8"/>
+                  </linearGradient>
+                  <linearGradient id="chatFg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ffffff"/>
+                    <stop offset="100%" stop-color="#e2e8f0"/>
+                  </linearGradient>
+                </defs>
+                <rect x="0" y="0" width="512" height="512" rx="88" fill="#0f172a"/>
+                <ellipse cx="256" cy="240" rx="140" ry="120" fill="url(#chatAccent)" opacity="0.12"/>
+                <rect x="172" y="380" width="168" height="6" rx="3" fill="url(#chatAccent)"/>
+                <g transform="translate(-4,-18)">
+                  <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#chatFg)"/>
+                  <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#chatAccent)" opacity="0.35" transform="translate(3,3)"/>
+                </g>
+              </svg>
             </div>
             <div>
               <h1 className="text-sm font-bold text-primary tracking-tight">FTJM</h1>

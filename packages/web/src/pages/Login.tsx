@@ -72,9 +72,27 @@ export default function LoginPage() {
               transition={{ delay: 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               className="inline-flex items-center justify-center"
             >
-              <div className="h-12 w-12 rounded-2xl bg-gradient-accent flex items-center justify-center shadow-lg mb-4 mx-auto"
+              <div className="h-14 w-14 rounded-2xl bg-[#0f172a] flex items-center justify-center shadow-lg mb-4 mx-auto overflow-hidden"
                 style={{ boxShadow: '0 8px 32px rgb(var(--accent-rgb) / 0.25)' }}>
-                <span className="text-xl font-bold text-white">F</span>
+                <svg viewBox="0 0 512 512" className="h-10 w-10">
+                  <defs>
+                    <linearGradient id="loginAccent" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#2dd4bf"/>
+                      <stop offset="100%" stop-color="#38bdf8"/>
+                    </linearGradient>
+                    <linearGradient id="loginFg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#ffffff"/>
+                      <stop offset="100%" stop-color="#e2e8f0"/>
+                    </linearGradient>
+                  </defs>
+                  <rect x="0" y="0" width="512" height="512" rx="88" fill="#0f172a"/>
+                  <ellipse cx="256" cy="240" rx="140" ry="120" fill="url(#loginAccent)" opacity="0.12"/>
+                  <rect x="172" y="380" width="168" height="6" rx="3" fill="url(#loginAccent)"/>
+                  <g transform="translate(-4,-18)">
+                    <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#loginFg)"/>
+                    <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#loginAccent)" opacity="0.35" transform="translate(3,3)"/>
+                  </g>
+                </svg>
               </div>
             </motion.div>
             <h1 className="text-2xl font-bold text-primary tracking-tight">FTJM Chat</h1>
