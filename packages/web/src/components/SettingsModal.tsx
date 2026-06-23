@@ -180,7 +180,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/20 dark:bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-subtle overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg bg-surface rounded-3xl shadow-2xl shadow-black/10 dark:shadow-black/50 border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
           <h2 className="text-lg font-bold text-primary">Settings</h2>
@@ -192,7 +192,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 px-6 pb-4 border-b border-subtle">
+        <div className="flex gap-2 px-6 pb-4 border-b border-border">
           <button onClick={() => setTab('notifications')}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               tab === 'notifications' ? 'bg-accent text-accent-content shadow-sm' : 'text-secondary hover:bg-surface-hover'
@@ -224,7 +224,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                 </div>
               </div>
 
-              <div className="border-t border-subtle pt-4">
+              <div className="border-t border-border pt-4">
                 <h3 className="text-sm font-semibold text-primary mb-3">In-App Notifications</h3>
                 <div className="space-y-3">
                   <ToggleRow label="Enable sounds" value={notif.enable_sounds} onChange={(v) => setNotifField('enable_sounds', v)} />
@@ -244,14 +244,13 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-primary">Enable custom theme</span>
                 <button onClick={() => { setUseCustomTheme(!useCustomTheme); if (!useCustomTheme) applyCustomTheme(theme); else clearCustomTheme() }}
-                  className={`w-10 h-5 rounded-full transition-all relative ${useCustomTheme ? 'bg-accent' : 'bg-surface-muted border border-subtle'}`}>
+                  className={`w-10 h-5 rounded-full transition-all relative ${useCustomTheme ? 'bg-accent' : 'bg-surface-muted border border-border'}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${useCustomTheme ? 'left-5' : 'left-0.5'}`} />
                 </button>
               </div>
 
               {useCustomTheme && (
-                <div className="space-y-4 pt-3 border-t border-subtle">
-                  {/* Essentials */}
+                <div className="space-y-4 pt-3 border-t border-border">
                   <Section title="Colors">
                     <HexInput label="Body background" value={theme.body_bg_color || ''} onChange={(v) => setThemeField('body_bg_color', v)} />
                     <HexInput label="Card background" value={theme.card_bg_color || ''} onChange={(v) => setThemeField('card_bg_color', v)} />
@@ -263,11 +262,10 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                     <HexInput label="Accent" value={theme.accent_color || ''} onChange={(v) => setThemeField('accent_color', v)} />
                   </Section>
 
-                  {/* Wallpaper */}
                   <Section title="Wallpaper">
                     <TextInput label="Wallpaper URL" value={theme.wallpaper || ''} onChange={(v) => setThemeField('wallpaper', v)} placeholder="https://example.com/image.gif" />
                     {theme.wallpaper && (
-                      <div className="h-24 rounded-xl bg-cover bg-center border border-subtle" style={{ backgroundImage: `url(${theme.wallpaper})` }} />
+                      <div className="h-24 rounded-xl bg-cover bg-center border border-border" style={{ backgroundImage: `url(${theme.wallpaper})` }} />
                     )}
                     <div className="flex gap-2">
                       <PatternBtn label="None" value="" current={theme.pattern || ''} onClick={(v) => setThemeField('pattern', v)} />
@@ -276,7 +274,6 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                     </div>
                   </Section>
 
-                  {/* Effects */}
                   <Section title="Effects">
                     <ToggleRow label="Glass effect" value={theme.glass_effect || false} onChange={(v) => setThemeField('glass_effect', v)} />
                     <RangeInput label="Blur amount" value={theme.blur_amount ?? 2} min={0} max={20} onChange={(v) => setThemeField('blur_amount', v)} />
@@ -285,7 +282,6 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                     <RangeInput label="Profile card opacity" value={theme.profile_card_opacity ?? 100} min={0} max={100} onChange={(v) => setThemeField('profile_card_opacity', v)} />
                   </Section>
 
-                  {/* Layout */}
                   <Section title="Layout">
                     <RangeInput label="Border radius" value={theme.border_radius ?? 12} min={0} max={40} onChange={(v) => setThemeField('border_radius', v)} />
                     <div>
@@ -300,11 +296,10 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                     </div>
                   </Section>
 
-                  {/* Legal */}
                   <div className="flex items-center gap-2 pt-2">
                     <input type="checkbox" id="terms" checked={theme.agreed_terms_v2 || false}
                       onChange={(e) => setThemeField('agreed_terms_v2', e.target.checked)}
-                      className="rounded border-subtle text-accent focus:ring-accent" />
+                      className="rounded border-border text-accent focus:ring-accent" />
                     <label htmlFor="terms" className="text-xs text-secondary">I agree to the terms v2</label>
                   </div>
 
@@ -319,7 +314,7 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-subtle bg-surface-muted">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-surface-muted">
           <button onClick={onClose}
             className="px-4 py-2 rounded-xl text-sm font-medium text-secondary hover:bg-surface-hover transition-all">
             Cancel
@@ -348,7 +343,7 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-secondary">{label}</span>
       <button onClick={() => onChange(!value)}
-        className={`w-10 h-5 rounded-full transition-all relative ${value ? 'bg-accent' : 'bg-surface-muted border border-subtle'}`}>
+        className={`w-10 h-5 rounded-full transition-all relative ${value ? 'bg-accent' : 'bg-surface-muted border border-border'}`}>
         <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${value ? 'left-5' : 'left-0.5'}`} />
       </button>
     </div>
@@ -360,7 +355,7 @@ function HexInput({ label, value, onChange }: { label: string; value: string; on
     <div className="flex items-center gap-3">
       <span className="text-xs text-secondary w-28 shrink-0">{label}</span>
       <input type="color" value={value || '#000000'} onChange={(e) => onChange(e.target.value)}
-        className="w-8 h-8 rounded-lg border border-subtle cursor-pointer bg-transparent" />
+        className="w-8 h-8 rounded-lg border border-border cursor-pointer bg-transparent" />
       <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
         placeholder="#000000"
         className="input-field !py-1.5 !text-xs flex-1" />

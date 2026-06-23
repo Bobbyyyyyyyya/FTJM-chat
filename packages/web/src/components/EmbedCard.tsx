@@ -78,8 +78,8 @@ function SingleEmbed({ url }: { url: string }) {
   if (!embed) return null
 
   if (embed.type === 'youtube') {
-    return (
-      <div className="mt-3 rounded-2xl overflow-hidden border border-subtle bg-surface shadow-sm">
+  return (
+    <div className="mt-3 rounded-2xl overflow-hidden border border-border bg-surface shadow-sm">
         <a
           href={url}
           target="_blank"

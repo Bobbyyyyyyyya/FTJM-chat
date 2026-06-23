@@ -65,10 +65,10 @@ export default function UpdateNotifier() {
 
   if (state.status === 'error') {
     return (
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-        <div className="bg-gray-800 border border-red-700 rounded-lg shadow-2xl p-4 text-white">
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm animate-slide-up">
+        <div className="bg-[#1a1a2e] border border-red-500/30 rounded-2xl shadow-2xl p-4 text-white">
           <div className="flex items-center gap-3">
-            <span className="text-red-400 text-lg">⚠</span>
+            <span className="text-red-400 text-lg">&#9888;</span>
             <span className="text-sm">{state.message}</span>
           </div>
         </div>
@@ -77,11 +77,11 @@ export default function UpdateNotifier() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm">
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl p-4 text-white">
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm animate-slide-up">
+      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl shadow-2xl p-4 text-white">
         {state.status === 'checking' && (
           <div className="flex items-center gap-3">
-            <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full" />
+            <div className="animate-spin h-5 w-5 border-2 border-accent border-t-transparent rounded-full" />
             <span>Checking for updates...</span>
           </div>
         )}
@@ -89,24 +89,20 @@ export default function UpdateNotifier() {
         {state.status === 'available' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="text-blue-400 text-lg">↓</span>
+              <span className="text-blue-400 text-lg">&#8595;</span>
               <span className="font-medium">v{state.version} available</span>
             </div>
             <div className="flex gap-2">
               {state.url ? (
-                <button
-                  onClick={handleDownload}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
-                >
+                <button onClick={handleDownload}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-xl text-sm font-medium transition-colors">
                   Download
                 </button>
               ) : (
                 <span className="text-sm text-gray-400">Downloading...</span>
               )}
-              <button
-                onClick={handleDismiss}
-                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
-              >
+              <button onClick={handleDismiss}
+                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm transition-colors">
                 Later
               </button>
             </div>
@@ -116,14 +112,11 @@ export default function UpdateNotifier() {
         {state.status === 'downloading' && (
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <span className="text-blue-400 text-lg">↓</span>
+              <span className="text-blue-400 text-lg">&#8595;</span>
               <span>Downloading update... {state.percent}%</span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${state.percent}%` }}
-              />
+            <div className="w-full bg-white/10 rounded-full h-2">
+              <div className="bg-gradient-to-r from-blue-500 to-cyan-400 h-2 rounded-full transition-all duration-300" style={{ width: `${state.percent}%` }} />
             </div>
           </div>
         )}
@@ -131,20 +124,16 @@ export default function UpdateNotifier() {
         {state.status === 'downloaded' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="text-green-400 text-lg">✓</span>
+              <span className="text-green-400 text-lg">&#10003;</span>
               <span className="font-medium">Update v{state.version} ready to install</span>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={handleInstall}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
-              >
+              <button onClick={handleInstall}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-xl text-sm font-medium transition-colors">
                 Restart & Install
               </button>
-              <button
-                onClick={handleDismiss}
-                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
-              >
+              <button onClick={handleDismiss}
+                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm transition-colors">
                 Later
               </button>
             </div>

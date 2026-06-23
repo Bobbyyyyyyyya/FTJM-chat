@@ -505,160 +505,189 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }
 
   return (
-    <div className="h-screen flex flex-col bg-body">
-      {/* Header */}
-      <header className="bg-surface border-b border-surface px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-accent flex items-center justify-center shadow-sm">
-            <span className="text-base font-bold text-white">F</span>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-primary">FTJM Chat</h1>
-            <p className="text-[11px] text-muted">Secure messaging</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 bg-surface-muted rounded-xl px-3.5 py-2 border-subtle">
-            <div className="h-7 w-7 rounded-full bg-gradient-accent flex items-center justify-center text-[10px] font-bold text-white">
-              {getAvatarInitials(user?.display_name || 'U')}
+    <div className="h-screen flex bg-body">
+      {/* ===== SIDEBAR (always visible) ===== */}
+      <aside className="w-64 flex flex-col shrink-0 bg-surface border-r border-border">
+        {/* Brand */}
+        <div className="px-5 pt-5 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-gradient-accent flex items-center justify-center shadow-sm">
+              <span className="text-sm font-bold text-white">F</span>
             </div>
-            <span className="text-sm font-medium text-primary">{user?.display_name}</span>
+            <div>
+              <h1 className="text-sm font-bold text-primary tracking-tight">FTJM</h1>
+              <p className="text-[10px] text-muted leading-tight">Secure messaging</p>
+            </div>
           </div>
-          <button
-            onClick={toggleTheme}
-            className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all duration-200"
-            aria-label="Toggle theme"
-          >
-            {theme === 'light' ? (
-              <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            )}
-          </button>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all duration-200"
-            aria-label="Settings"
-          >
-            <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-surface-muted hover:bg-surface-hover active:scale-95 text-secondary font-medium rounded-xl text-sm transition-all duration-200"
-          >
-            Logout
-          </button>
         </div>
-      </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - only show in DM mode */}
-        {activeTab === 'dm' && (
-        <aside className="w-72 bg-surface border-r border-surface flex flex-col shrink-0">
-          <div className="px-5 pt-5 pb-3 border-b border-subtle">
-            <h2 className="text-base font-bold text-primary flex items-center gap-2">
-              <svg className="w-5 h-5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              Chats
-            </h2>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
-            {conversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-6">
-                <p className="text-muted text-sm font-medium">No conversations yet</p>
-                <p className="text-muted text-xs mt-1">Start a new chat to begin</p>
-              </div>
-            ) : (
-              conversations.map((conv) => {
-                const preview = getConversationPreview(conv)
-                const isSelected = selectedConvId === conv.id
-                const isGroup = conv.is_group
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
-                    className={`sidebar-item ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
-                  >
-                    {isGroup ? (
-                      <div className={`h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center text-sm font-bold shrink-0 ${
-                        isSelected ? 'bg-gradient-to-br from-amber-400 to-orange-400 shadow-sm text-white' : 'bg-amber-100 text-amber-600'
-                      }`}>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="relative shrink-0">
-                        <div className={`h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                          isSelected ? 'bg-gradient-accent shadow-sm' : 'bg-surface-hover text-secondary'
-                        }`}>
-                          {preview.photo_url ? (
-                            <img src={preview.photo_url} alt={preview.display_name} className="h-full w-full object-cover" />
-                          ) : (
-                            getAvatarInitials(preview.display_name)
-                          )}
-                        </div>
-                        {!conv.is_group && (
-                          <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-surface ${
-                            onlineUsers.has(conv.participants.find((id: string) => id !== user?.id) || '') 
-                              ? 'bg-green-500' 
-                              : 'bg-gray-400'
-                          }`} />
-                        )}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-semibold truncate ${isSelected ? '' : ''}`}>
-                        {preview.display_name}
-                      </p>
-                      <p className={`text-xs mt-0.5 ${isSelected ? (isGroup ? 'text-amber-600' : 'text-accent') : ''}`}>
-                        {isGroup ? 'Group' : 'Direct message'}
-                      </p>
-                    </div>
-                  </button>
-                )
-              })
-            )}
-          </div>
-        </aside>
-        )}
-
-        {/* Main */}
-        <main className="flex-1 flex flex-col bg-body">
-          {/* Tabs */}
-          <div className="bg-surface border-b border-surface px-5 pt-4 pb-0 flex gap-2">
+        {/* Tabs */}
+        <div className="px-3 pb-3">
+          <div className="flex gap-1 bg-surface-muted rounded-lg p-0.5">
             <button
               onClick={() => setActiveTab('dm')}
-              className={`tab-btn ${activeTab === 'dm' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
+              className={`tab-btn flex-1 text-center ${activeTab === 'dm' ? 'tab-btn-active bg-surface shadow-sm' : 'tab-btn-inactive'}`}
             >
-              <svg className="w-4 h-4 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
               Messages
             </button>
             <button
               onClick={() => { setActiveTab('general'); setSelectedConvId(null) }}
-              className={`tab-btn ${activeTab === 'general' ? 'tab-btn-active' : 'tab-btn-inactive'}`}
+              className={`tab-btn flex-1 text-center ${activeTab === 'general' ? 'tab-btn-active bg-surface shadow-sm' : 'tab-btn-inactive'}`}
             >
-              <svg className="w-4 h-4 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
               </svg>
               General
             </button>
           </div>
+        </div>
 
-          {/* Chat header */}
-          <div className="bg-surface border-b border-subtle px-6 py-4 flex items-center justify-between gap-3">
-            {activeTab === 'dm' && selectedConversation && (
-              <>
+        {/* Conversation list / General info */}
+        <div className="flex-1 overflow-y-auto px-3 pb-3">
+          {activeTab === 'dm' ? (
+            <>
+              {conversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                  <div className="h-10 w-10 rounded-2xl bg-surface-muted flex items-center justify-center mb-3">
+                    <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted font-medium">No conversations</p>
+                  <p className="text-xs text-muted mt-1">Start a new chat to begin</p>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {conversations.map((conv) => {
+                    const preview = getConversationPreview(conv)
+                    const isSelected = selectedConvId === conv.id
+                    const isGroup = conv.is_group
+                    return (
+                      <button
+                        key={conv.id}
+                        onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
+                        className={`sidebar-item ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                      >
+                        {/* Avatar */}
+                        <div className="relative shrink-0">
+                          <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${
+                            isGroup
+                              ? 'bg-gradient-to-br from-amber-400 to-orange-400 text-white'
+                              : isSelected
+                                ? 'bg-gradient-accent text-white shadow-sm'
+                                : 'bg-surface-hover text-secondary'
+                          }`}>
+                            {isGroup ? (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            ) : preview.photo_url ? (
+                              <img src={preview.photo_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              getAvatarInitials(preview.display_name)
+                            )}
+                          </div>
+                          {!conv.is_group && (
+                            <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
+                              onlineUsers.has(conv.participants.find((id: string) => id !== user?.id) || '')
+                                ? 'bg-green-500'
+                                : 'bg-gray-400'
+                            }`} />
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                            {preview.display_name}
+                          </p>
+                          <p className="text-[11px] text-muted">
+                            {isGroup ? 'Group' : 'Direct message'}
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <div className="h-12 w-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                </svg>
+              </div>
+              <p className="text-sm text-primary font-medium">General Chat</p>
+              <p className="text-xs text-muted mt-1">Public conversations with everyone</p>
+              <span className="mt-4 text-[10px] uppercase tracking-wider text-accent font-semibold bg-accent/10 px-3 py-1.5 rounded-full border border-accent/20">
+                Live room
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom user area */}
+        <div className="p-3 border-t border-border">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-muted">
+            <div className="h-8 w-8 rounded-full bg-gradient-accent flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+              {user?.photo_url ? (
+                <img src={user.photo_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                getAvatarInitials(user?.display_name || 'U')
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-primary truncate">{user?.display_name}</p>
+              <p className="text-[10px] text-muted">Online</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={toggleTheme}
+                className="h-7 w-7 rounded-lg hover:bg-surface-hover flex items-center justify-center transition-all"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <svg className="w-3.5 h-3.5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="h-7 w-7 rounded-lg hover:bg-surface-hover flex items-center justify-center transition-all"
+                aria-label="Settings"
+              >
+                <svg className="w-3.5 h-3.5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                </svg>
+              </button>
+              <button
+                onClick={logout}
+                className="h-7 w-7 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center justify-center transition-all"
+                aria-label="Logout"
+              >
+                <svg className="w-3.5 h-3.5 text-secondary hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ===== MAIN CONTENT ===== */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Chat header */}
+          <div className="bg-surface-glass backdrop-blur-sm border-b border-border px-6 py-3 flex items-center justify-between gap-3 shrink-0 min-h-[57px]">
+          {activeTab === 'dm' && selectedConversation && (
+            <>
               <div className="flex items-center gap-3 min-w-0">
                 {selectedConversation.is_group && (
                   <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center shrink-0 shadow-sm">
@@ -668,7 +697,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="text-sm text-secondary">
+                  <p className="text-xs text-secondary">
                     {selectedConversation.is_group
                       ? (selectedConversation.title || 'Group')
                       : 'Direct message'}
@@ -693,14 +722,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               {!selectedConversation.is_group && (
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => handleStartCall(false)}
-                    className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
+                    className="h-8 w-8 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
                     title="Voice call">
                     <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </button>
                   <button onClick={() => handleStartCall(true)}
-                    className="h-9 w-9 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
+                    className="h-8 w-8 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
                     title="Video call">
                     <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -708,179 +737,52 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   </button>
                 </div>
               )}
-              </>
-            )}
-            {activeTab === 'dm' && !selectedConversation && (
-              <p className="text-sm text-muted">Select a conversation</p>
-            )}
-            {activeTab === 'general' && (
-              <>
-                <p className="text-sm text-primary font-medium">General Chat</p>
-                <span className="text-[10px] uppercase tracking-wider text-accent font-semibold bg-accent/10 px-3 py-1.5 rounded-full border border-accent/20 shrink-0">
-                  Live room
-                </span>
-              </>
-            )}
-          </div>
+            </>
+          )}
+          {activeTab === 'dm' && !selectedConversation && (
+            <p className="text-sm text-muted">Select a conversation</p>
+          )}
+          {activeTab === 'general' && (
+            <p className="text-sm text-primary font-medium">General Chat</p>
+          )}
+        </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 min-h-0">
-            {activeTab === 'dm' ? (
-              selectedConvId ? (
-                <>
-                  {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                      <p className="text-muted font-medium">No messages yet</p>
-                      <p className="text-muted text-sm mt-1">Send the first message!</p>
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 min-h-0">
+          {activeTab === 'dm' ? (
+            selectedConvId ? (
+              <>
+                {messages.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                    <div className="h-12 w-12 rounded-2xl bg-surface-muted flex items-center justify-center mb-4">
+                      <svg className="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
                     </div>
-                  )}
-                  {[...messages].filter((m) => !isCallSignal(m.text)).reverse().map((msg) => {
-                    const isMine = msg.sender_id === user?.id
-                    const participant = getParticipantInfo(msg.sender_id)
-                    const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    const isEditing = editingId?.type === 'dm' && editingId.id === msg.id
-                    return (
-                      <div key={msg.id} className={`flex gap-3 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
-                        {!isMine && (
-                          <button onClick={() => openProfile(msg.sender_id, participant.display_name, participant.photo_url)}
-                            className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
-                            {participant.photo_url ? (
-                              <img src={participant.photo_url} alt={participant.display_name} className="h-full w-full object-cover" />
-                            ) : getAvatarInitials(participant.display_name)}
-                          </button>
-                        )}
-                        <div className={`max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
-                          <div className={`flex items-center gap-2 mb-0.5 ${isMine ? 'flex-row-reverse' : ''}`}>
-                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? 'text-white/80' : 'text-muted'}`}>
-                              {isMine ? 'You' : participant.display_name}
-                            </span>
-                          </div>
-                          {isEditing ? (
-                            <div className="flex flex-col gap-2">
-                              <input
-                                type="text"
-                                value={editingValue}
-                                onChange={(e) => setEditingValue(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit() }}
-                                className="input-field !py-1.5 !text-sm"
-                                autoFocus
-                              />
-                              <div className="flex gap-2 justify-end">
-                                <button onClick={handleSaveEdit}
-                                  className="text-[11px] px-3 py-1 rounded-lg bg-accent text-accent-content hover:bg-accent-hover font-medium transition-colors">
-                                  Save
-                                </button>
-                                <button onClick={handleCancelEdit}
-                                  className="text-[11px] px-3 py-1 rounded-lg bg-surface-muted text-secondary hover:bg-surface-hover font-medium transition-colors">
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
-                                <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                              </div>
-                              <DataUriMedia text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                              <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                              <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
-                                <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-muted'}`}>{time}</p>
-                                {isMine && (
-                                  <div className="flex gap-1.5">
-                                    <button onClick={() => handleEditMessage(msg)}
-                                      className="p-1 text-muted hover:text-primary transition-colors"
-                                      title="Edit">
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    </button>
-                                    <button onClick={() => handleDeleteMessage(msg.id)}
-                                      className="p-1 text-muted hover:text-red-400 transition-colors"
-                                      title="Delete">
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        {isMine && (
-                          <button onClick={() => openProfile(msg.sender_id, user?.display_name ?? undefined, user?.photo_url ?? undefined)}
-                            className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
-                            {user?.photo_url ? (
-                              <img src={user.photo_url} alt={user.display_name ?? ''} className="h-full w-full object-cover" />
-                            ) : getAvatarInitials(user?.display_name || 'You')}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                  {typingUsers.length > 0 && (
-                    <div className="flex items-center gap-2 text-muted text-sm">
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                      {typingUsers.map((id) => getParticipantInfo(id).display_name).join(', ')} typing...
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full">
-                  <p className="text-muted text-lg font-medium">Select a conversation</p>
-                  <p className="text-muted text-sm mt-1">Choose a chat from the sidebar</p>
-                </div>
-              )
-            ) : (
-              <div className="space-y-4">
-                {generalChat.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                    <p className="text-muted text-lg font-medium">No messages yet</p>
-                    <p className="text-muted text-sm mt-1">Be the first to post in general chat</p>
+                    <p className="text-muted font-medium">No messages yet</p>
+                    <p className="text-muted text-sm mt-1">Send the first message!</p>
                   </div>
-                ) : (
-                  generalChat.map((post) => {
-                    const isMine = post.author_id === user?.id
-                    const authorInfo = getParticipantInfo(post.author_id)
-                    const authorName = isMine ? 'You' : authorInfo.display_name
-                    const isEditing = editingId?.type === 'general' && editingId.id === post.id
-                    return (
-                      <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
-                        <div className="flex items-center gap-3 mb-3">
-                          <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
-                            className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
-                            {authorInfo.photo_url ? (
-                              <img src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
-                            ) : getAvatarInitials(authorName)}
-                          </button>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-primary">{authorName}</p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-[11px] text-muted">{new Date(post.created_at).toLocaleString()}</p>
-                              {isMine && (
-                                <div className="flex gap-1.5">
-                                  <button onClick={() => handleEditPost(post)}
-                                    className="p-1 text-muted hover:text-primary transition-colors"
-                                    title="Edit">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                  </button>
-                                  <button onClick={() => handleDeletePost(post.id)}
-                                    className="p-1 text-muted hover:text-red-400 transition-colors"
-                                    title="Delete">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                )}
+                {[...messages].filter((m) => !isCallSignal(m.text)).reverse().map((msg) => {
+                  const isMine = msg.sender_id === user?.id
+                  const participant = getParticipantInfo(msg.sender_id)
+                  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  const isEditing = editingId?.type === 'dm' && editingId.id === msg.id
+                  return (
+                    <div key={msg.id} className={`flex gap-3 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+                      {!isMine && (
+                        <button onClick={() => openProfile(msg.sender_id, participant.display_name, participant.photo_url)}
+                          className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
+                          {participant.photo_url ? (
+                            <img src={participant.photo_url} alt={participant.display_name} className="h-full w-full object-cover" />
+                          ) : getAvatarInitials(participant.display_name)}
+                        </button>
+                      )}
+                      <div className={`max-w-xl ${isMine ? 'chat-bubble-mine' : 'chat-bubble-other'} px-4 py-2.5`}>
+                        <div className={`flex items-center gap-2 mb-0.5 ${isMine ? 'flex-row-reverse' : ''}`}>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? 'text-white/80' : 'text-muted'}`}>
+                            {isMine ? 'You' : participant.display_name}
+                          </span>
                         </div>
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
@@ -905,47 +807,183 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           </div>
                         ) : (
                           <>
-                            <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
-                              <LinkifyText text={maybeDecryptText(post.content)} />
+                            <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
+                              <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                             </div>
-                            <DataUriMedia text={maybeDecryptText(post.content)} />
-                            <MessageEmbeds text={maybeDecryptText(post.content)} />
+                            <DataUriMedia text={maybeDecryptText(msg.text, msg.is_encrypted)} />
+                            <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
+                            <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
+                              <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-muted'}`}>{time}</p>
+                              {isMine && (
+                                <div className="flex gap-1.5">
+                                  <button onClick={() => handleEditMessage(msg)}
+                                    className="p-1 text-muted hover:text-primary transition-colors"
+                                    title="Edit">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button onClick={() => handleDeleteMessage(msg.id)}
+                                    className="p-1 text-muted hover:text-red-400 transition-colors"
+                                    title="Delete">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </>
                         )}
                       </div>
-                    )
-                  })
+                      {isMine && (
+                        <button onClick={() => openProfile(msg.sender_id, user?.display_name ?? undefined, user?.photo_url ?? undefined)}
+                          className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
+                          {user?.photo_url ? (
+                            <img src={user.photo_url} alt={user.display_name ?? ''} className="h-full w-full object-cover" />
+                          ) : getAvatarInitials(user?.display_name || 'You')}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+                {typingUsers.length > 0 && (
+                  <div className="flex items-center gap-2 text-muted text-sm">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    {typingUsers.map((id) => getParticipantInfo(id).display_name).join(', ')} typing...
+                  </div>
                 )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="h-16 w-16 rounded-3xl bg-surface-muted flex items-center justify-center mb-5">
+                  <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <p className="text-muted text-lg font-medium">Select a conversation</p>
+                <p className="text-muted text-sm mt-1">Choose a chat from the sidebar</p>
               </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div className="bg-surface border-t border-surface px-6 py-4">
-            <div className="flex gap-3 max-w-4xl mx-auto">
-              <input
-                type="text"
-                placeholder={activeTab === 'dm' ? (selectedConvId ? 'Type a message...' : 'Select a conversation first') : 'Share something with everyone...'}
-                value={messageInput}
-                onChange={(e) => { setMessageInput(e.target.value); if (activeTab === 'dm') handleTyping(e.target.value.length > 0) }}
-                onKeyPress={(e) => { if (e.key === 'Enter') activeTab === 'dm' ? handleSendMessage() : handleSendPost() }}
-                className="input-field"
-                disabled={activeTab === 'dm' && !selectedConvId}
-              />
-              <button
-                onClick={activeTab === 'dm' ? handleSendMessage : handleSendPost}
-                disabled={activeTab === 'dm' && !selectedConvId}
-                className="btn-send"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m0 0l-7 7m7-7l7 7" />
-                </svg>
-                Send
-              </button>
+            )
+          ) : (
+            <div className="space-y-4">
+              {generalChat.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-20">
+                  <div className="h-12 w-12 rounded-2xl bg-surface-muted flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                  </div>
+                  <p className="text-muted text-lg font-medium">No messages yet</p>
+                  <p className="text-muted text-sm mt-1">Be the first to post in general chat</p>
+                </div>
+              ) : (
+                generalChat.map((post) => {
+                  const isMine = post.author_id === user?.id
+                  const authorInfo = getParticipantInfo(post.author_id)
+                  const authorName = isMine ? 'You' : authorInfo.display_name
+                  const isEditing = editingId?.type === 'general' && editingId.id === post.id
+                  return (
+                    <div key={post.id} className="chat-bubble-other !rounded-3xl p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
+                          className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
+                          {authorInfo.photo_url ? (
+                            <img src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
+                          ) : getAvatarInitials(authorName)}
+                        </button>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-primary">{authorName}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[11px] text-muted">{new Date(post.created_at).toLocaleString()}</p>
+                            {isMine && (
+                              <div className="flex gap-1.5">
+                                <button onClick={() => handleEditPost(post)}
+                                  className="p-1 text-muted hover:text-primary transition-colors"
+                                  title="Edit">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button onClick={() => handleDeletePost(post.id)}
+                                  className="p-1 text-muted hover:text-red-400 transition-colors"
+                                  title="Delete">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {isEditing ? (
+                        <div className="flex flex-col gap-2">
+                          <input
+                            type="text"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit() }}
+                            className="input-field !py-1.5 !text-sm"
+                            autoFocus
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={handleSaveEdit}
+                              className="text-[11px] px-3 py-1 rounded-lg bg-accent text-accent-content hover:bg-accent-hover font-medium transition-colors">
+                              Save
+                            </button>
+                            <button onClick={handleCancelEdit}
+                              className="text-[11px] px-3 py-1 rounded-lg bg-surface-muted text-secondary hover:bg-surface-hover font-medium transition-colors">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
+                            <LinkifyText text={maybeDecryptText(post.content)} />
+                          </div>
+                          <DataUriMedia text={maybeDecryptText(post.content)} />
+                          <MessageEmbeds text={maybeDecryptText(post.content)} />
+                        </>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="bg-surface-glass backdrop-blur-sm border-t border-border px-6 py-4">
+          <div className="flex gap-3 max-w-3xl mx-auto">
+            <input
+              type="text"
+              placeholder={activeTab === 'dm' ? (selectedConvId ? 'Type a message...' : 'Select a conversation first') : 'Share something with everyone...'}
+              value={messageInput}
+              onChange={(e) => { setMessageInput(e.target.value); if (activeTab === 'dm') handleTyping(e.target.value.length > 0) }}
+              onKeyPress={(e) => { if (e.key === 'Enter') activeTab === 'dm' ? handleSendMessage() : handleSendPost() }}
+              className="input-field"
+              disabled={activeTab === 'dm' && !selectedConvId}
+            />
+            <button
+              onClick={activeTab === 'dm' ? handleSendMessage : handleSendPost}
+              disabled={activeTab === 'dm' && !selectedConvId}
+              className="btn-send"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m0 0l-7 7m7-7l7 7" />
+              </svg>
+              Send
+            </button>
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
 
       {/* Settings modal */}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
@@ -971,7 +1009,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       {/* Profile modal */}
       {profilePreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/20 dark:bg-black/40 backdrop-blur-sm" onClick={closeProfile}>
-          <div className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-subtle overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
             {/* Banner */}
             {profilePreview.banner_url ? (
               <div className="h-36 bg-cover bg-center" style={{ backgroundImage: `url(${profilePreview.banner_url})` }} />

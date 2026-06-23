@@ -19,8 +19,13 @@ function App() {
 
   if (!isInitialized || loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-900">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-body">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 rounded-2xl bg-gradient-accent flex items-center justify-center shadow-lg animate-pulse-slow">
+            <span className="text-lg font-bold text-white">F</span>
+          </div>
+          <div className="text-primary text-sm font-medium">Loading...</div>
+        </div>
       </div>
     )
   }
@@ -32,7 +37,7 @@ function App() {
       <Toaster
         position="top-right"
         toastOptions={{
-          style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' },
+          style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
         }}
       />
     </>
