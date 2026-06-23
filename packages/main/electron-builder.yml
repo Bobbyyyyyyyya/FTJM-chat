@@ -10,16 +10,20 @@ extraResources:
     filter:
       - "**/*"
 afterPack: scripts/afterPack.cjs
+icon: assets/icon.png
+
 mac:
   target:
     - dmg
     - zip
   category: public.app-category.productivity
   artifactName: "FTJM-Chat-${version}-${arch}.${ext}"
+  icon: assets/icon.icns
 win:
   target:
     - nsis
     - portable
+  icon: assets/icon.ico
 linux:
   target:
     - target: AppImage
@@ -29,6 +33,7 @@ linux:
   category: Utility
   maintainer: "FTJM Team <team@ftjm.chat>"
   artifactName: "FTJM-Chat_${version}_${arch}.${ext}"
+  icon: assets/icon.png
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

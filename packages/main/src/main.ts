@@ -26,10 +26,18 @@ let mainWindow: BrowserWindow | null
 let loadRetryCount = 0
 const MAX_LOAD_RETRIES = 30
 
+const getIconPath = () => {
+  if (isDev) {
+    return path.join(__dirname, '../../packages/main/assets/icon.png')
+  }
+  return path.join(process.resourcesPath, 'icon.png')
+}
+
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
