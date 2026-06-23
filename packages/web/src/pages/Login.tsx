@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSignup, setIsSignup] = useState(false)
   const [displayName, setDisplayName] = useState('')
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const { login, signup } = useAuthStore()
 
@@ -150,9 +151,40 @@ export default function LoginPage() {
               />
             </div>
 
+            <AnimatePresence mode="wait">
+              {isSignup && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-start gap-2.5"
+                >
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-0.5 rounded border-border text-accent focus:ring-accent/30 shrink-0"
+                  />
+                  <label htmlFor="terms" className="text-xs text-secondary leading-relaxed">
+                    I agree to the{' '}
+                    <a
+                      href="https://ais-pre-3d4qy6xrtw5vtu4g3hs7yo-160997107127.europe-west3.run.app/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:underline"
+                    >
+                      Terms of Service
+                    </a>
+                  </label>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <motion.button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (isSignup && !agreedToTerms)}
               whileTap={{ scale: 0.98 }}
               className="w-full bg-gradient-accent text-white font-semibold py-2.5 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               style={{ boxShadow: '0 8px 32px rgb(var(--accent-rgb) / 0.25)' }}
