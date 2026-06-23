@@ -18,13 +18,29 @@ export interface YouTubeEmbed {
   thumbnail: string
 }
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg|ico)(\?.*)?$/i
+
+export function isImageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return IMAGE_EXT.test(parsed.pathname)
+  } catch {
+    return false
+  }
+}
+
+export interface ImageEmbed {
+  type: 'image'
+  url: string
+}
+
 export interface LinkEmbed {
   type: 'link'
   url: string
   domain: string
 }
 
-export type EmbedData = YouTubeEmbed | LinkEmbed
+export type EmbedData = YouTubeEmbed | ImageEmbed | LinkEmbed
 
 export async function fetchEmbed(url: string): Promise<EmbedData | null> {
   const youtubeId = getYouTubeId(url)
@@ -50,6 +66,10 @@ export async function fetchEmbed(url: string): Promise<EmbedData | null> {
         thumbnail: `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`,
       }
     }
+  }
+
+  if (isImageUrl(url)) {
+    return { type: 'image', url }
   }
 
   try {

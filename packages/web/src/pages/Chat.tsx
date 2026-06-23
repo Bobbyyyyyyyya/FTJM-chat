@@ -521,113 +521,72 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="px-3 pb-3">
-          <div className="flex gap-1 bg-surface-muted rounded-lg p-0.5">
-            <button
-              onClick={() => setActiveTab('dm')}
-              className={`tab-btn flex-1 text-center ${activeTab === 'dm' ? 'tab-btn-active bg-surface shadow-sm' : 'tab-btn-inactive'}`}
-            >
-              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              Messages
-            </button>
-            <button
-              onClick={() => { setActiveTab('general'); setSelectedConvId(null) }}
-              className={`tab-btn flex-1 text-center ${activeTab === 'general' ? 'tab-btn-active bg-surface shadow-sm' : 'tab-btn-inactive'}`}
-            >
-              <svg className="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-              </svg>
-              General
-            </button>
-          </div>
-        </div>
-
-        {/* Conversation list / General info */}
-        <div className="flex-1 overflow-y-auto px-3 pb-3">
-          {activeTab === 'dm' ? (
-            <>
-              {conversations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                  <div className="h-10 w-10 rounded-2xl bg-surface-muted flex items-center justify-center mb-3">
-                    <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-muted font-medium">No conversations</p>
-                  <p className="text-xs text-muted mt-1">Start a new chat to begin</p>
+        {/* Conversation list */}
+        {activeTab === 'dm' && (
+          <div className="flex-1 overflow-y-auto px-3 pb-3">
+            {conversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="h-10 w-10 rounded-2xl bg-surface-muted flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
                 </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {conversations.map((conv) => {
-                    const preview = getConversationPreview(conv)
-                    const isSelected = selectedConvId === conv.id
-                    const isGroup = conv.is_group
-                    return (
-                      <button
-                        key={conv.id}
-                        onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
-                        className={`sidebar-item ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
-                      >
-                        {/* Avatar */}
-                        <div className="relative shrink-0">
-                          <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${
-                            isGroup
-                              ? 'bg-gradient-to-br from-amber-400 to-orange-400 text-white'
-                              : isSelected
-                                ? 'bg-gradient-accent text-white shadow-sm'
-                                : 'bg-surface-hover text-secondary'
-                          }`}>
-                            {isGroup ? (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                            ) : preview.photo_url ? (
-                              <img src={preview.photo_url} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              getAvatarInitials(preview.display_name)
-                            )}
-                          </div>
-                          {!conv.is_group && (
-                            <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
-                              onlineUsers.has(conv.participants.find((id: string) => id !== user?.id) || '')
-                                ? 'bg-green-500'
-                                : 'bg-gray-400'
-                            }`} />
+                <p className="text-sm text-muted font-medium">No conversations</p>
+                <p className="text-xs text-muted mt-1">Start a new chat to begin</p>
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {conversations.map((conv) => {
+                  const preview = getConversationPreview(conv)
+                  const isSelected = selectedConvId === conv.id
+                  const isGroup = conv.is_group
+                  return (
+                    <button
+                      key={conv.id}
+                      onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
+                      className={`sidebar-item ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                    >
+                      <div className="relative shrink-0">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${
+                          isGroup
+                            ? 'bg-gradient-to-br from-amber-400 to-orange-400 text-white'
+                            : isSelected
+                              ? 'bg-gradient-accent text-white shadow-sm'
+                              : 'bg-surface-hover text-secondary'
+                        }`}>
+                          {isGroup ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          ) : preview.photo_url ? (
+                            <img src={preview.photo_url} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            getAvatarInitials(preview.display_name)
                           )}
                         </div>
-                        {/* Info */}
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
-                            {preview.display_name}
-                          </p>
-                          <p className="text-[11px] text-muted">
-                            {isGroup ? 'Group' : 'Direct message'}
-                          </p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center px-6">
-              <div className="h-12 w-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                </svg>
+                        {!conv.is_group && (
+                          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
+                            onlineUsers.has(conv.participants.find((id: string) => id !== user?.id) || '')
+                              ? 'bg-green-500'
+                              : 'bg-gray-400'
+                          }`} />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                          {preview.display_name}
+                        </p>
+                        <p className="text-[11px] text-muted">
+                          {isGroup ? 'Group' : 'Direct message'}
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
-              <p className="text-sm text-primary font-medium">General Chat</p>
-              <p className="text-xs text-muted mt-1">Public conversations with everyone</p>
-              <span className="mt-4 text-[10px] uppercase tracking-wider text-accent font-semibold bg-accent/10 px-3 py-1.5 rounded-full border border-accent/20">
-                Live room
-              </span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Bottom user area */}
         <div className="p-3 border-t border-border">
@@ -685,7 +644,31 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       {/* ===== MAIN CONTENT ===== */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Chat header */}
-          <div className="bg-surface-glass backdrop-blur-sm border-b border-border px-6 py-3 flex items-center justify-between gap-3 shrink-0 min-h-[57px]">
+        <div className="bg-surface-glass backdrop-blur-sm border-b border-border px-4 py-2.5 flex items-center gap-4 shrink-0 min-h-[57px]">
+          {/* Nav tabs */}
+          <div className="flex gap-1 bg-surface-muted rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => setActiveTab('dm')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'dm' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
+              }`}
+            >
+              Messages
+            </button>
+            <button
+              onClick={() => { setActiveTab('general'); setSelectedConvId(null) }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'general' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
+              }`}
+            >
+              General
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-border shrink-0" />
+
+          <div className="flex items-center justify-between gap-3 flex-1 min-w-0">
           {activeTab === 'dm' && selectedConversation && (
             <>
               <div className="flex items-center gap-3 min-w-0">
@@ -745,6 +728,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           {activeTab === 'general' && (
             <p className="text-sm text-primary font-medium">General Chat</p>
           )}
+          </div>
         </div>
 
         {/* Messages */}

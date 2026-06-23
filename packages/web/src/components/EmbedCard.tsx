@@ -78,21 +78,11 @@ function SingleEmbed({ url }: { url: string }) {
   if (!embed) return null
 
   if (embed.type === 'youtube') {
-  return (
-    <div className="mt-3 rounded-2xl overflow-hidden border border-border bg-surface shadow-sm">
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block group"
-        >
+    return (
+      <div className="mt-3 rounded-2xl overflow-hidden border border-border bg-surface shadow-sm max-w-lg">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="block group">
           <div className="relative aspect-video bg-black">
-            <img
-              src={embed.thumbnail}
-              alt={embed.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
+            <img src={embed.thumbnail} alt={embed.title} className="w-full h-full object-cover" loading="lazy" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="h-12 w-12 rounded-full bg-black/70 flex items-center justify-center group-hover:bg-black/90 transition-colors">
                 <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
@@ -112,14 +102,17 @@ function SingleEmbed({ url }: { url: string }) {
     )
   }
 
+  if (embed.type === 'image') {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 block max-w-lg">
+        <img src={url} alt="Image" className="max-w-full rounded-xl max-h-96 object-contain bg-surface-muted border border-border" loading="lazy" />
+      </a>
+    )
+  }
+
   return (
     <div className="mt-2">
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-      >
+      <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-accent hover:underline">
         <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
