@@ -2,8 +2,10 @@ import {
   app,
   BrowserWindow,
   Menu,
+  Tray,
   ipcMain,
   Notification,
+  nativeImage,
   shell,
 } from 'electron'
 import pkg from 'electron-updater'
@@ -23,10 +25,19 @@ const isMac = process.platform === 'darwin'
 const isDev = !app.isPackaged
 
 let mainWindow: BrowserWindow | null
+let tray: Tray | null
 let loadRetryCount = 0
 const MAX_LOAD_RETRIES = 30
+let isQuitting = false
 
 const getIconPath = () => {
+  if (isDev) {
+    return path.join(__dirname, '../../packages/main/assets/icon.png')
+  }
+  return path.join(process.resourcesPath, 'icon.png')
+}
+
+const getTrayIconPath = () => {
   if (isDev) {
     return path.join(__dirname, '../../packages/main/assets/icon.png')
   }
@@ -59,6 +70,13 @@ const createWindow = () => {
 
   mainWindow.webContents.openDevTools()
 
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -82,8 +100,45 @@ const createWindow = () => {
   })
 }
 
+function showWindow() {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+}
+
+function createTray() {
+  const iconPath = getTrayIconPath()
+  const icon = nativeImage.createFromPath(iconPath)
+  const trayIcon = isMac ? icon.resize({ width: 22, height: 22 }) : icon.resize({ width: 32, height: 32 })
+  if (isMac) trayIcon.setTemplateImage(true)
+
+  tray = new Tray(trayIcon)
+  tray.setToolTip('FTJM Chat')
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show FTJM Chat',
+      click: () => showWindow(),
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      },
+    },
+  ])
+
+  tray.setContextMenu(contextMenu)
+  tray.on('click', () => showWindow())
+}
+
 app.on('ready', () => {
   createWindow()
+  createTray()
   if (!isDev) {
     setTimeout(checkForUpdates, 5000)
     setInterval(checkForUpdates, 3600000)
@@ -91,16 +146,18 @@ app.on('ready', () => {
   setupIpcHandlers()
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+app.on('window-all-closed', () => {})
 
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow()
+  } else {
+    showWindow()
   }
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 function checkForUpdates() {
@@ -188,15 +245,25 @@ function checkGithubRelease() {
 }
 
 function setupIpcHandlers() {
-  ipcMain.handle('notify', (_event, { title, body }) => {
-    new Notification({
+  ipcMain.handle('notify', (_event, { title, body, urgency }) => {
+    const n = new Notification({
       title,
       body,
-    }).show()
+      urgency: urgency || 'normal',
+    })
+    n.on('click', () => {
+      showWindow()
+      mainWindow?.webContents.send('notification-clicked', { title, body })
+    })
+    n.show()
   })
 
   ipcMain.handle('get-window-focused', () => {
     return mainWindow?.isFocused() || false
+  })
+
+  ipcMain.handle('show-window', () => {
+    showWindow()
   })
 
   ipcMain.handle('check-for-updates', () => {
@@ -214,7 +281,6 @@ function setupIpcHandlers() {
   })
 }
 
-// Create menu
 const template: any = [
   {
     label: 'File',
@@ -223,6 +289,7 @@ const template: any = [
         label: 'Exit',
         accelerator: 'CmdOrCtrl+Q',
         click: () => {
+          isQuitting = true
           app.quit()
         },
       },
@@ -233,9 +300,7 @@ const template: any = [
     submenu: [
       {
         label: 'About',
-        click: () => {
-          // About dialog
-        },
+        click: () => {},
       },
     ],
   },
@@ -243,4 +308,3 @@ const template: any = [
 
 const menu = Menu.buildFromTemplate(template)
 Menu.setApplicationMenu(menu)
-

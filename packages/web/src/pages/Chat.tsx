@@ -108,7 +108,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         const title = `Incoming call from ${activeCall.callerName}`
         const body = activeCall.isVideo ? 'Video call' : 'Voice call'
         if ((window as any).electron?.notify) {
-          (window as any).electron.notify(title, body)
+          (window as any).electron.notify(title, body, 'critical')
         } else if (Notification.permission === 'granted') {
           new Notification(title, { body })
         }
@@ -212,8 +212,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     const subscription = subscribeToGeneralChat((payload) => {
       if (payload.type === 'INSERT' && payload.new) {
         const newPost = payload.new
-        setGeneralChat((prev) => [newPost, ...prev])
         if (newPost.author_id !== user?.id) {
+          setGeneralChat((prev) => [newPost, ...prev])
           sendDesktopNotification('New post in General', maybeDecryptText(newPost.content), 'post')
         }
         if (!profilesCache[newPost.author_id]) {
@@ -265,8 +265,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         subscription = subscribeToMessages(selectedConvId, (payload) => {
           if (payload.type === 'INSERT' && payload.new) {
             const newMsg = payload.new!
-            setMessages((prev) => [...prev, newMsg])
             if (newMsg.sender_id !== user?.id) {
+              setMessages((prev) => [...prev, newMsg])
               const sender = getParticipantInfo(newMsg.sender_id)
               sendDesktopNotification(sender.display_name, maybeDecryptText(newMsg.text, newMsg.is_encrypted), 'dm')
             }
@@ -462,11 +462,13 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   const closeProfile = () => setProfilePreview(null)
 
-  function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
+  async function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
     if (!myProfile?.notification_settings) return
     const ns = myProfile.notification_settings as any
     if (type === 'dm' && !ns.notify_new_messages) return
     if (type === 'post' && !ns.notify_new_posts) return
+    const focused = await (window as any).electron?.isWindowFocused?.()
+    if (focused) return
     const text = body.slice(0, 200)
     if ((window as any).electron?.notify) {
       (window as any).electron.notify(title, text)
@@ -528,16 +530,24 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   </linearGradient>
                   <linearGradient id="chatFg" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stop-color="#ffffff"/>
-                    <stop offset="100%" stop-color="#e2e8f0"/>
+                    <stop offset="100%" stop-color="#cbd5e1"/>
+                  </linearGradient>
+                  <linearGradient id="chatBar" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#2dd4bf"/>
+                    <stop offset="50%" stop-color="#38bdf8"/>
+                    <stop offset="100%" stop-color="#2dd4bf"/>
                   </linearGradient>
                 </defs>
-                <rect x="0" y="0" width="512" height="512" rx="88" fill="#0f172a"/>
-                <ellipse cx="256" cy="240" rx="140" ry="120" fill="url(#chatAccent)" opacity="0.12"/>
-                <rect x="172" y="380" width="168" height="6" rx="3" fill="url(#chatAccent)"/>
-                <g transform="translate(-4,-18)">
-                  <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#chatFg)"/>
-                  <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#chatAccent)" opacity="0.35" transform="translate(3,3)"/>
+                <rect x="0" y="0" width="512" height="512" rx="96" fill="#0f172a"/>
+                <rect x="6" y="6" width="500" height="500" rx="90" fill="none" stroke="url(#chatAccent)" stroke-width="2" opacity="0.15"/>
+                <ellipse cx="256" cy="220" rx="160" ry="140" fill="url(#chatAccent)" opacity="0.08"/>
+                <g transform="translate(256,248)">
+                  <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10 L64 40 L-6 40 L-6 108 L-50 108 Z" fill="url(#chatFg)"/>
+                  <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10 L64 40 L-6 40 L-6 108 L-50 108 Z" fill="url(#chatAccent)" opacity="0.25" transform="translate(3,3)"/>
+                  <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10" fill="none" stroke="url(#chatAccent)" stroke-width="3" opacity="0.5" stroke-linecap="round"/>
                 </g>
+                <rect x="172" y="388" width="168" height="5" rx="2.5" fill="url(#chatBar)"/>
+                <rect x="172" y="394" width="168" height="5" rx="2.5" fill="url(#chatBar)" opacity="0.3"/>
               </svg>
             </div>
             <div>

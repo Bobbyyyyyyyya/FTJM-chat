@@ -8,21 +8,29 @@
       <stop offset="0%" stop-color="#2dd4bf"/>
       <stop offset="100%" stop-color="#38bdf8"/>
     </linearGradient>
+    <linearGradient id="accentGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
     <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="accentBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
     </linearGradient>
   </defs>
-  <!-- rounded square background -->
-  <rect width="512" height="512" rx="88" fill="url(#bg)"/>
-  <!-- accent glow -->
-  <ellipse cx="256" cy="240" rx="140" ry="120" fill="url(#accent)" opacity="0.1"/>
-  <!-- accent underline accent -->
-  <rect x="172" y="380" width="168" height="6" rx="3" fill="url(#accent)"/>
-  <!-- F letterform as precise paths (centered) -->
-  <g transform="translate(-4,-18)">
-    <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#fg)"/>
-    <!-- shadow/highlight layer -->
-    <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#accent)" opacity="0.35" transform="translate(3,3)"/>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect x="6" y="6" width="500" height="500" rx="90" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.15"/>
+  <ellipse cx="256" cy="220" rx="160" ry="140" fill="url(#accentGlow)" opacity="0.08"/>
+  <g transform="translate(256,248)">
+    <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10 L64 40 L-6 40 L-6 108 L-50 108 Z" fill="url(#fg)"/>
+    <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10 L64 40 L-6 40 L-6 108 L-50 108 Z" fill="url(#accent)" opacity="0.25" transform="translate(3,3)"/>
+    <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10" fill="none" stroke="url(#accent)" stroke-width="3" opacity="0.5" stroke-linecap="round"/>
   </g>
+  <rect x="172" y="388" width="168" height="5" rx="2.5" fill="url(#accentBar)"/>
+  <rect x="172" y="394" width="168" height="5" rx="2.5" fill="url(#accentBar)" opacity="0.3"/>
 </svg>
