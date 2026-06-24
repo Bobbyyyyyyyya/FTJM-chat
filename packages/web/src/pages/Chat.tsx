@@ -26,9 +26,7 @@ import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
 import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
 import { isCallSignal } from '@/lib/db'
-import { useVoiceCall } from '@/hooks/useVoiceCall'
-import VoiceCallUI from '@/components/VoiceCallUI'
-import { startRingtone, stopRingtone } from '@/lib/ringtone'
+import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -78,45 +76,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [myProfile, setMyProfile] = useState<any>(null)
 
   // Voice call
-  const voiceCall = useVoiceCall(
-    user?.id,
-    user?.display_name || 'Gebruiker',
-    user?.photo_url || undefined,
-  )
   const {
-    callState,
-    activeCall,
-    duration,
-    isMuted,
-    localStream,
-    remoteStream,
-    layout,
     startCall: vcStartCall,
-    acceptCall: vcAcceptCall,
-    endCall: vcEndCall,
-    declineCall: vcDeclineCall,
-    toggleMute: vcToggleMute,
-    setLayout,
-  } = voiceCall
-
-
-  // Ringtone for incoming calls
-  useEffect(() => {
-    if (callState === 'ringing') {
-      startRingtone()
-      if (activeCall) {
-        const title = `Incoming call from ${activeCall.callerName}`
-        const body = activeCall.isVideo ? 'Video call' : 'Voice call'
-        if ((window as any).electron?.notify) {
-          (window as any).electron.notify(title, body, 'critical')
-        } else if (Notification.permission === 'granted') {
-          new Notification(title, { body })
-        }
-      }
-    } else {
-      stopRingtone()
-    }
-  }, [callState, activeCall])
+  } = useVoiceCallContext()
 
   // Load custom theme from localStorage on mount
   useEffect(() => {
@@ -480,9 +442,18 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     if (type === 'post' && ns.notify_new_posts === false) return
     playNotificationSound(type)
     const text = body.slice(0, 200)
-    if ((window as any).electron?.notify) {
-      (window as any).electron.notify(title, text)
-    } else if (Notification.permission === 'granted') {
+    const sendViaElectron = () => {
+      if ((window as any).electron?.notify) {
+        (window as any).electron.notify(title, text).catch(() => {
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body: text })
+          }
+        })
+        return true
+      }
+      return false
+    }
+    if (!sendViaElectron() && Notification.permission === 'granted') {
       new Notification(title, { body: text })
     }
   }
@@ -781,7 +752,28 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             <p className="text-sm text-muted">Select a conversation</p>
           )}
           {activeTab === 'general' && (
-            <p className="text-sm text-primary font-medium">General Chat</p>
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-teal-400 to-cyan-400 flex items-center justify-center shrink-0 shadow-sm">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary">Public channel</p>
+                  <p className="text-sm text-primary font-medium">General Chat</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => getPosts().then(setGeneralChat).catch(console.error)}
+                  className="h-8 w-8 rounded-xl bg-surface-muted hover:bg-surface-hover flex items-center justify-center transition-all active:scale-90"
+                  title="Refresh">
+                  <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+            </>
           )}
           </div>
         </div>
@@ -1046,24 +1038,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
       {/* Settings modal */}
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-
-      {/* Voice Call UI */}
-      <VoiceCallUI
-        callState={callState}
-        activeCall={activeCall}
-        duration={duration}
-        isMuted={isMuted}
-        isVideoMuted={false}
-        localStream={localStream}
-        remoteStream={remoteStream}
-        layout={layout}
-        onAccept={vcAcceptCall}
-        onEnd={vcEndCall}
-        onDecline={vcDeclineCall}
-        onToggleMute={vcToggleMute}
-        onToggleVideo={() => {}}
-        onSetLayout={setLayout}
-      />
 
       {/* Profile modal */}
       {profilePreview && (

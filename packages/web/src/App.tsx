@@ -1,21 +1,74 @@
 import { useEffect, useState } from 'react'
 import { Toaster } from 'sonner'
 import { useAuthStore } from './hooks/useAuth'
+import { useVoiceCall } from './hooks/useVoiceCall'
+import { VoiceCallProvider } from './hooks/useVoiceCallContext'
 import { usePresence } from './hooks/usePresence'
+import { startRingtone, stopRingtone } from './lib/ringtone'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
 import SessionLockScreen from './components/SessionLockScreen'
+import VoiceCallUI from './components/VoiceCallUI'
 import UpdateNotifier from './components/UpdateNotifier'
 import './App.css'
 
 function App() {
   const { user, pendingUser, loading, checkAuth } = useAuthStore()
   const [isInitialized, setIsInitialized] = useState(false)
+  const activeIdentity = pendingUser || user
   const onlineUsers = usePresence(user?.id)
+
+  const voiceCall = useVoiceCall(
+    activeIdentity?.id,
+    activeIdentity?.display_name || 'Gebruiker',
+    activeIdentity?.photo_url || undefined,
+  )
+  const {
+    callState,
+    activeCall,
+    duration,
+    isMuted,
+    isVideoMuted,
+    localStream,
+    remoteStream,
+    layout,
+    startCall,
+    acceptCall,
+    endCall,
+    declineCall,
+    toggleMute,
+    toggleVideo,
+    setLayout,
+  } = voiceCall
+
+  // Ringtone for incoming calls
+  useEffect(() => {
+    if (callState === 'ringing') {
+      startRingtone()
+      if (activeCall) {
+        const title = `Incoming call from ${activeCall.callerName}`
+        const body = activeCall.isVideo ? 'Video call' : 'Voice call'
+        if ((window as any).electron?.notify) {
+          (window as any).electron.notify(title, body, 'critical')
+        } else if (Notification.permission === 'granted') {
+          new Notification(title, { body })
+        }
+      }
+    } else {
+      stopRingtone()
+    }
+    return stopRingtone
+  }, [callState, activeCall])
 
   useEffect(() => {
     checkAuth().then(() => setIsInitialized(true))
   }, [checkAuth])
+
+  useEffect(() => {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
 
   if (!isInitialized || loading) {
     return (
@@ -48,38 +101,49 @@ function App() {
     )
   }
 
-  if (pendingUser) {
-    return (
-      <>
-        <SessionLockScreen />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
-          }}
-        />
-      </>
-    )
-  }
-
-  if (user) {
-    return (
-      <>
-        <ChatPage onlineUsers={onlineUsers} />
-        <UpdateNotifier />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
-          }}
-        />
-      </>
-    )
+  const callContextValue = {
+    callState,
+    activeCall,
+    duration,
+    isMuted,
+    isVideoMuted,
+    localStream,
+    remoteStream,
+    layout,
+    startCall,
+    acceptCall,
+    endCall,
+    declineCall,
+    toggleMute,
+    toggleVideo,
+    setLayout,
   }
 
   return (
-    <>
-      <LoginPage />
+    <VoiceCallProvider value={callContextValue}>
+      {pendingUser ? (
+        <SessionLockScreen />
+      ) : user ? (
+        <ChatPage onlineUsers={onlineUsers} />
+      ) : (
+        <LoginPage />
+      )}
+      <VoiceCallUI
+        callState={callState}
+        activeCall={activeCall}
+        duration={duration}
+        isMuted={isMuted}
+        isVideoMuted={isVideoMuted}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        layout={layout}
+        onAccept={acceptCall}
+        onEnd={endCall}
+        onDecline={declineCall}
+        onToggleMute={toggleMute}
+        onToggleVideo={toggleVideo}
+        onSetLayout={setLayout}
+      />
       <UpdateNotifier />
       <Toaster
         position="top-right"
@@ -87,7 +151,7 @@ function App() {
           style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
         }}
       />
-    </>
+    </VoiceCallProvider>
   )
 }
 
