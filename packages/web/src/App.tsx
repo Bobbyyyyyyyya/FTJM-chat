@@ -5,12 +5,11 @@ import { usePresence } from './hooks/usePresence'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
 import SessionLockScreen from './components/SessionLockScreen'
-import PasswordExpiredScreen from './components/PasswordExpiredScreen'
 import UpdateNotifier from './components/UpdateNotifier'
 import './App.css'
 
 function App() {
-  const { user, pendingUser, passwordExpired, verified, loading, checkAuth } = useAuthStore()
+  const { user, pendingUser, loading, checkAuth } = useAuthStore()
   const [isInitialized, setIsInitialized] = useState(false)
   const onlineUsers = usePresence(user?.id)
 
@@ -49,39 +48,25 @@ function App() {
     )
   }
 
+  if (pendingUser) {
+    return (
+      <>
+        <SessionLockScreen />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
+          }}
+        />
+      </>
+    )
+  }
+
   if (user) {
     return (
       <>
         <ChatPage onlineUsers={onlineUsers} />
         <UpdateNotifier />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
-          }}
-        />
-      </>
-    )
-  }
-
-  if (pendingUser && verified && passwordExpired) {
-    return (
-      <>
-        <PasswordExpiredScreen />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
-          }}
-        />
-      </>
-    )
-  }
-
-  if (pendingUser) {
-    return (
-      <>
-        <SessionLockScreen />
         <Toaster
           position="top-right"
           toastOptions={{

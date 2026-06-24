@@ -18,7 +18,6 @@ export interface User {
     custom_sounds?: Record<string, unknown> | null;
     admin_notes?: string | null;
     is_blocked?: boolean;
-    password_changed_at?: string | null;
     created_at: string;
     updated_at: string;
 }

@@ -17,7 +17,6 @@ export interface User {
   custom_theme?: Record<string, unknown> | null;
   use_custom_theme?: boolean;
   custom_sounds?: Record<string, unknown> | null;
-  password_changed_at?: string | null;
   admin_notes?: string | null;
   is_blocked?: boolean;
   created_at: string;

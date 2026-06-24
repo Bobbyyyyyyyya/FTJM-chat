@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'motion/react'
+import type { User } from '@ftjm/shared'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -10,8 +12,35 @@ export default function LoginPage() {
   const [isSignup, setIsSignup] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [profilePreview, setProfilePreview] = useState<User | null>(null)
+  const [lookingUp, setLookingUp] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   const { login, signup } = useAuthStore()
+
+  useEffect(() => {
+    if (!email.trim() || isSignup) {
+      setProfilePreview(null)
+      return
+    }
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setLookingUp(true)
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email.trim())
+          .maybeSingle()
+        setProfilePreview(data || null)
+      } catch {
+        setProfilePreview(null)
+      } finally {
+        setLookingUp(false)
+      }
+    }, 500)
+    return () => clearTimeout(debounceRef.current)
+  }, [email, isSignup])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,19 +184,70 @@ export default function LoginPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-secondary mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field !py-2.5"
-                placeholder="••••••••"
-                required
-              />
-            </div>
+            {/* Profile preview */}
+            {!isSignup && email.trim() && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface-muted"
+              >
+                {lookingUp ? (
+                  <div className="h-10 w-10 rounded-full bg-surface-muted animate-pulse shrink-0" />
+                ) : profilePreview ? (
+                  <>
+                    {profilePreview.photo_url ? (
+                      <img src={profilePreview.photo_url} alt="" className="h-10 w-10 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-accent">
+                          {(profilePreview.display_name || '?')[0].toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-primary truncate">
+                        {profilePreview.display_name || profilePreview.email}
+                      </p>
+                      <p className="text-xs text-muted">{profilePreview.email}</p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">No account found with this email</p>
+                )}
+              </motion.div>
+            )}
+
+            {(!isSignup && profilePreview) && (
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1.5">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field !py-2.5"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            )}
+
+            {isSignup && (
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1.5">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field !py-2.5"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               {isSignup && (
@@ -202,7 +282,7 @@ export default function LoginPage() {
 
             <motion.button
               type="submit"
-              disabled={isLoading || (isSignup && !agreedToTerms)}
+              disabled={isLoading || (isSignup && !agreedToTerms) || (!isSignup && !profilePreview)}
               whileTap={{ scale: 0.98 }}
               className="w-full bg-gradient-accent text-white font-semibold py-2.5 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               style={{ boxShadow: '0 8px 32px rgb(var(--accent-rgb) / 0.25)' }}
@@ -222,7 +302,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <button
               type="button"
-              onClick={() => { setIsSignup(!isSignup); setError('') }}
+              onClick={() => { setIsSignup(!isSignup); setError(''); setProfilePreview(null); setPassword('') }}
               className="text-sm text-muted hover:text-accent transition-colors font-medium"
             >
               {isSignup

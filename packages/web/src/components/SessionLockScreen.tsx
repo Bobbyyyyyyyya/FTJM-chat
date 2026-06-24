@@ -6,7 +6,7 @@ export default function SessionLockScreen() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const { pendingUser, unlockWithPassword, logout, passwordExpired } = useAuthStore()
+  const { pendingUser, unlockWithPassword, logout } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,14 +69,10 @@ export default function SessionLockScreen() {
                 )}
               </div>
             </motion.div>
-            <h1 className="text-2xl font-bold text-primary tracking-tight">
+            <h1 className="text-xl font-bold text-primary tracking-tight">
               Welcome back{pendingUser?.display_name ? `, ${pendingUser.display_name}` : ''}
             </h1>
-            <p className="text-sm text-muted mt-1.5">
-              {passwordExpired
-                ? 'Your password has expired. Please set a new one.'
-                : 'Enter your password to unlock'}
-            </p>
+            <p className="text-sm text-muted mt-1.5">Enter your password to unlock</p>
           </div>
 
           {error && (
