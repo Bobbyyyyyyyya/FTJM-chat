@@ -1,6 +1,6 @@
 import CryptoJS from 'crypto-js'
 
-const SECRET_KEY = 'your-secret-encryption-key-at-least-32-chars'
+const SECRET_KEY = import.meta.env.VITE_ENCRYPTION_KEY || 'your-secret-encryption-key-at-least-32-chars'
 export const GC_PREFIX = 'gc:'
 
 export function encryptText(plaintext: string) {

@@ -7,11 +7,13 @@ import {
   Notification,
   nativeImage,
   shell,
+  safeStorage,
 } from 'electron'
 import pkg from 'electron-updater'
 import https from 'https'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+import { readFileSync, writeFileSync } from 'fs'
 
 const { autoUpdater } = pkg
 
@@ -68,7 +70,15 @@ const createWindow = () => {
   console.log('Loading URL:', startUrl)
   mainWindow.loadURL(startUrl)
 
-  mainWindow.webContents.openDevTools()
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools()
+  }
+
+  if (app.isPackaged) {
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow?.webContents.closeDevTools()
+    })
+  }
 
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -278,6 +288,35 @@ function setupIpcHandlers() {
     if (!isMac) {
       autoUpdater.quitAndInstall()
     }
+  })
+
+  ipcMain.handle('encrypt-store', (_event, key: string, value: string) => {
+    try {
+      if (!safeStorage.isEncryptionAvailable()) return false
+      const encrypted = safeStorage.encryptString(value)
+      const storagePath = path.join(app.getPath('userData'), 'secure-store.json')
+      let store: Record<string, string> = {}
+      try {
+        store = JSON.parse(readFileSync(storagePath, 'utf-8'))
+      } catch {}
+      store[key] = encrypted.toString('base64')
+      writeFileSync(storagePath, JSON.stringify(store), 'utf-8')
+      return true
+    } catch { return false }
+  })
+
+  ipcMain.handle('decrypt-store', (_event, key: string) => {
+    try {
+      if (!safeStorage.isEncryptionAvailable()) return null
+      const storagePath = path.join(app.getPath('userData'), 'secure-store.json')
+      let store: Record<string, string> = {}
+      try {
+        store = JSON.parse(readFileSync(storagePath, 'utf-8'))
+      } catch {}
+      if (!store[key]) return null
+      const buffer = Buffer.from(store[key], 'base64')
+      return safeStorage.decryptString(buffer)
+    } catch { return null }
   })
 }
 

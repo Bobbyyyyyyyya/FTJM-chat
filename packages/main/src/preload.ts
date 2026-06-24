@@ -18,4 +18,6 @@ contextBridge.exposeInMainWorld('electron', {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   openUpdateUrl: (url: string) => ipcRenderer.invoke('open-update-url', url),
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  encryptStore: (key: string, value: string) => ipcRenderer.invoke('encrypt-store', key, value),
+  decryptStore: (key: string) => ipcRenderer.invoke('decrypt-store', key),
 })

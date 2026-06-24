@@ -9,6 +9,8 @@ declare global {
       checkForUpdates: () => Promise<void>
       openUpdateUrl: (url: string) => Promise<void>
       installUpdate: () => Promise<void>
+      encryptStore: (key: string, value: string) => Promise<boolean>
+      decryptStore: (key: string) => Promise<string | null>
     }
   }
 }

@@ -11,16 +11,18 @@
     "stop": "pkill -f 'packages/main/dist/main.js' || true && pkill -f 'vite' || true",
     "dev:web": "cd packages/web && npm run dev",
     "dev:electron": "NODE_ENV=development npx electron packages/main/dist/main.js",
-    "build": "npm run build:shared && npm run build:web && npm run build:main",
+    "build": "npm run build:shared && npm run build:web && npm run build:main && npm run obfuscate",
     "build:shared": "cd packages/shared && npm run build",
     "build:web": "cd packages/web && npm run build",
     "build:main": "cd packages/main && npm run build",
+    "obfuscate": "node scripts/obfuscate.mjs",
     "package": "npm run build && cd packages/main && npm run package",
     "type-check": "cd packages/shared && npm run type-check && cd ../web && npm run type-check && cd ../main && npm run type-check",
     "postinstall": "node -e \"import { copyFileSync, constants } from 'fs'; try { copyFileSync('.env.example', '.env.local', constants.COPYFILE_EXCL); console.log('✅ .env.local created from .env.example'); } catch(e) { if(e.code !== 'EEXIST') console.error(e); }\""
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "javascript-obfuscator": "^5.4.3",
     "typescript": "^5.3.0"
   },
   "workspaces": [

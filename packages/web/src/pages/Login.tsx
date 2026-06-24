@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [profilePreview, setProfilePreview] = useState<User | null>(null)
   const [lookingUp, setLookingUp] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { login, signup } = useAuthStore()
 
