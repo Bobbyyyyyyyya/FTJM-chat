@@ -1,5 +1,5 @@
 import JavaScriptObfuscator from 'javascript-obfuscator'
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'fs'
 import { join, extname } from 'path'
 
 const dirs = [
@@ -26,7 +26,7 @@ const options = {
   splitStringsChunkLength: 10,
   stringArray: true,
   stringArrayCallsTransform: true,
-  stringArrayEncoding: ['rc4'],
+  stringArrayEncoding: 'rc4',
   stringArrayIndexShift: true,
   stringArrayRotate: true,
   stringArrayShuffle: true,
@@ -42,6 +42,7 @@ const options = {
 function findJsFiles(dir) {
   const files = []
   try {
+    if (!existsSync(dir)) return files
     const entries = readdirSync(dir)
     for (const entry of entries) {
       const full = join(dir, entry)
@@ -51,19 +52,33 @@ function findJsFiles(dir) {
         files.push(full)
       }
     }
-  } catch {}
+  } catch (e) {
+    console.warn(`Warning: could not read ${dir}:`, e.message)
+  }
   return files
 }
 
 for (const dir of dirs) {
   const files = findJsFiles(dir)
-  console.log(`Obfuscating ${files.length} files in ${dir}...`)
-  for (const file of files) {
-    const code = readFileSync(file, 'utf-8')
-    const result = JavaScriptObfuscator.obfuscate(code, options)
-    writeFileSync(file, result.getObfuscatedCode(), 'utf-8')
-    console.log(`  ✓ ${file.replace(dir, '')}`)
+  if (files.length === 0) {
+    console.log(`No JS files found in ${dir}, skipping...`)
+    continue
   }
+  console.log(`Obfuscating ${files.length} files in ${dir}...`)
+  let success = 0
+  for (const file of files) {
+    try {
+      const code = readFileSync(file, 'utf-8')
+      const result = JavaScriptObfuscator.obfuscate(code, options)
+      writeFileSync(file, result.getObfuscatedCode(), 'utf-8')
+      console.log(`  ✓ ${file.replace(dir, '')}`)
+      success++
+    } catch (e) {
+      console.warn(`  ✗ Failed to obfuscate ${file.replace(dir, '')}: ${e.message}`)
+      console.warn(`    Keeping original file.`)
+    }
+  }
+  console.log(`  ${success}/${files.length} files obfuscated`)
 }
 
 console.log('Obfuscation complete!')
