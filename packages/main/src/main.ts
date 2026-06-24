@@ -74,12 +74,6 @@ const createWindow = () => {
     mainWindow.webContents.openDevTools()
   }
 
-  if (app.isPackaged) {
-    mainWindow.webContents.on('devtools-opened', () => {
-      mainWindow?.webContents.closeDevTools()
-    })
-  }
-
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault()
