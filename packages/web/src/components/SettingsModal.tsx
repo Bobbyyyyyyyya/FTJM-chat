@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { updateProfile, getProfile } from '@/lib/db'
 import { useAuthStore } from '@/hooks/useAuth'
-import { uploadSound, playSound } from '@/lib/storage'
+import { fileToDataUri, playSound } from '@/lib/storage'
 
 interface NotificationSettings {
   enable_sounds: boolean
@@ -177,10 +177,10 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
     input.accept = 'audio/*'
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file || !user?.id) return
-      const url = await uploadSound(file, user.id)
-      if (url) {
-        setNotifField(key, url)
+      if (!file) return
+      const dataUri = await fileToDataUri(file)
+      if (dataUri) {
+        setNotifField(key, dataUri)
       }
     }
     input.click()

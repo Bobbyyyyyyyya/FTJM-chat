@@ -1,10 +1,17 @@
 import { useState, useEffect, Fragment } from 'react'
 import { fetchEmbed, extractUrls, type EmbedData } from '@/lib/embeds'
 
+const DATA_URI_REGEX = /data:(image|audio|video)\/[a-z0-9+.-]+;base64,[A-Za-z0-9+/=_-]+/gi
+const DATA_URI_ANY = /data:[a-z0-9+.-]+\/[a-z0-9+.-]+;base64,[A-Za-z0-9+/=_-]+/gi
 const LINK_REGEX = /(https?:\/\/[^\s<]+[^\s<.,;:!?)}\]'"])/g
 
+function stripDataUris(text: string) {
+  return text.replace(DATA_URI_ANY, '').trim()
+}
+
 export function LinkifyText({ text }: { text: string }) {
-  const parts = text.split(LINK_REGEX)
+  const cleaned = stripDataUris(text)
+  const parts = cleaned.split(LINK_REGEX)
   return (
     <>
       {parts.map((part, i) => {
@@ -40,15 +47,13 @@ export function MessageEmbeds({ text }: { text: string }) {
   )
 }
 
-const DATA_URI_REGEX = /data:(image|audio)\/[a-z0-9+.-]+;base64,[A-Za-z0-9+/=_-]+/gi
-
 export function DataUriMedia({ text }: { text: string }) {
-  const matches: { uri: string; type: 'image' | 'audio' }[] = []
+  const matches: { uri: string; type: 'image' | 'audio' | 'video' }[] = []
   const re = new RegExp(DATA_URI_REGEX.source, 'gi')
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
     const uri = m[0]
-    const type = m[1] as 'image' | 'audio'
+    const type = m[1] as 'image' | 'audio' | 'video'
     if (!matches.some((x) => x.uri === uri)) {
       matches.push({ uri, type })
     }
@@ -60,6 +65,8 @@ export function DataUriMedia({ text }: { text: string }) {
       {matches.map((m, i) =>
         m.type === 'image' ? (
           <img key={i} src={m.uri} alt="Base64 image" className="mt-2 max-w-full rounded-xl max-h-96 object-contain bg-surface-muted" loading="lazy" />
+        ) : m.type === 'video' ? (
+          <video key={i} src={m.uri} controls className="mt-2 max-w-full rounded-xl max-h-96 bg-surface-muted" />
         ) : (
           <audio key={i} src={m.uri} controls className="mt-2 w-full max-w-md" />
         )
