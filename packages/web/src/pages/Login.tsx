@@ -217,7 +217,7 @@ export default function LoginPage() {
               </motion.div>
             )}
 
-            {(!isSignup && profilePreview) && (
+            {!isSignup && (
               <div>
                 <label className="block text-sm font-medium text-secondary mb-1.5">
                   Password
@@ -282,7 +282,7 @@ export default function LoginPage() {
 
             <motion.button
               type="submit"
-              disabled={isLoading || (isSignup && !agreedToTerms) || (!isSignup && !profilePreview)}
+              disabled={isLoading || (isSignup && !agreedToTerms)}
               whileTap={{ scale: 0.98 }}
               className="w-full bg-gradient-accent text-white font-semibold py-2.5 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               style={{ boxShadow: '0 8px 32px rgb(var(--accent-rgb) / 0.25)' }}

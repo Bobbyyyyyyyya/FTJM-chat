@@ -70,9 +70,7 @@ const createWindow = () => {
   console.log('Loading URL:', startUrl)
   mainWindow.loadURL(startUrl)
 
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools()
-  }
+  mainWindow.webContents.openDevTools()
 
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
