@@ -2,61 +2,60 @@ import { create } from 'zustand'
 import { User } from '@ftjm/shared'
 import { supabase } from '@/lib/supabase'
 
+const PASSWORD_EXPIRY_DAYS = 30
+
 interface AuthState {
   user: User | null
+  pendingUser: User | null
+  passwordExpired: boolean
+  verified: boolean
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, displayName: string) => Promise<void>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
+  unlockWithPassword: (password: string) => Promise<void>
+  changeExpiredPassword: (newPassword: string) => Promise<void>
+  lockApp: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+function isPasswordExpired(profile: User | null): boolean {
+  if (!profile?.password_changed_at) return true
+  const changed = new Date(profile.password_changed_at).getTime()
+  const now = Date.now()
+  const diffDays = (now - changed) / (1000 * 60 * 60 * 24)
+  return diffDays >= PASSWORD_EXPIRY_DAYS
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  pendingUser: null,
+  passwordExpired: false,
+  verified: false,
   loading: true,
 
   checkAuth: async () => {
     try {
       const { data, error } = await supabase.auth.getSession()
-      console.debug('[Auth] getSession result', { data, error })
-      if (error) {
-        throw error
-      }
+      if (error) throw error
       if (data.session?.user?.id) {
-        // Ensure Realtime client has the current access token
-        console.debug('[Auth] checkAuth setRealtimeAuth', {
-          userId: data.session.user.id,
-          hasToken: Boolean(data.session.access_token),
-          accessToken: data.session.access_token?.slice(0, 24),
-          supabaseClient: {
-            hasAuth: Boolean(supabase?.auth),
-            hasFrom: typeof supabase?.from,
-          },
-        })
-        if (!supabase || typeof supabase.from !== 'function') {
-          throw new Error('Supabase client is not initialized or invalid')
-        }
         try {
-          const result = await supabase.realtime.setAuth(data.session.access_token)
-          console.debug('[Auth] setRealtimeAuth completed', {
-            userId: data.session.user.id,
-            tokenPresent: Boolean(data.session.access_token),
-            result,
-          })
+          await supabase.realtime.setAuth(data.session.access_token)
         } catch (e) {
-          console.warn('Failed to set realtime auth token:', e)
+          console.warn('[Auth] setRealtimeAuth failed:', e)
         }
-        // User is logged in, fetch profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', data.session.user.id)
           .single()
-        console.debug('[Auth] profile fetch after checkAuth', { profile, profileError })
-        if (profileError) {
-          throw profileError
+        if (profileError) throw profileError
+        const expired = isPasswordExpired(profile)
+        if (expired) {
+          set({ pendingUser: profile, passwordExpired: true, verified: false, loading: false })
+        } else {
+          set({ user: profile, loading: false })
         }
-        set({ user: profile || null, loading: false })
       } else {
         set({ user: null, loading: false })
       }
@@ -66,40 +65,83 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  login: async (email: string, password: string) => {
+  unlockWithPassword: async (password: string) => {
+    const { pendingUser, passwordExpired } = get()
+    if (!pendingUser?.email) throw new Error('No pending user')
+    set({ loading: true })
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: pendingUser.email,
         password,
       })
-      console.debug('[Auth] signInWithPassword result', { data, error })
       if (error) throw error
-
-      // Set realtime auth token after login so channels use same user
-      console.debug('[Auth] login setRealtimeAuth', {
-        userId: data.user?.id,
-        hasToken: Boolean(data.session?.access_token),
-        accessToken: data.session?.access_token?.slice(0, 24),
-      })
       try {
-        const result = await supabase.realtime.setAuth(data.session?.access_token)
-        console.debug('[Auth] login setRealtimeAuth completed', {
-          userId: data.user?.id,
-          tokenPresent: Boolean(data.session?.access_token),
-          result,
-        })
+        await supabase.realtime.setAuth(data.session?.access_token)
       } catch (e) {
-        console.warn('Failed to set realtime auth token after login:', e)
+        console.warn('[Auth] setRealtimeAuth failed after unlock:', e)
       }
+      if (passwordExpired) {
+        set({ verified: true, loading: false })
+      } else {
+        set({ user: pendingUser, pendingUser: null, verified: false, loading: false })
+      }
+    } catch (error) {
+      set({ loading: false })
+      throw error
+    }
+  },
 
-      // Fetch user profile
+  changeExpiredPassword: async (newPassword: string) => {
+    const { pendingUser } = get()
+    if (!pendingUser) throw new Error('No pending user')
+    set({ loading: true })
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+      const now = new Date().toISOString()
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ password_changed_at: now })
+        .eq('id', pendingUser.id)
+      if (updateError) console.warn('[Auth] Failed to update password_changed_at:', updateError)
+      set({
+        user: { ...pendingUser, password_changed_at: now },
+        pendingUser: null,
+        passwordExpired: false,
+        verified: false,
+        loading: false,
+      })
+    } catch (error) {
+      set({ loading: false })
+      throw error
+    }
+  },
+
+  lockApp: () => {
+    const { user } = get()
+    set({ user: null, pendingUser: user, passwordExpired: false, verified: false, loading: false })
+  },
+
+  login: async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+      try {
+        await supabase.realtime.setAuth(data.session?.access_token)
+      } catch (e) {
+        console.warn('[Auth] setRealtimeAuth failed after login:', e)
+      }
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
         .single()
-
-      set({ user: profile, loading: false })
+      const expired = isPasswordExpired(profile)
+      if (expired) {
+        set({ pendingUser: profile, passwordExpired: true, verified: true, loading: false })
+      } else {
+        set({ user: profile, loading: false })
+      }
     } catch (error) {
       console.error('Login error:', error)
       set({ loading: false })
@@ -109,39 +151,19 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signup: async (email: string, password: string, displayName: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-      console.debug('[Auth] signUp result', { data, error })
+      const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
-
-      // If signup returns a session, set realtime auth
-      console.debug('[Auth] signup setRealtimeAuth', {
-        userId: data.user?.id,
-        hasToken: Boolean(data.session?.access_token),
-        accessToken: data.session?.access_token?.slice(0, 24),
-      })
       try {
-        const result = await supabase.realtime.setAuth(data.session?.access_token)
-        console.debug('[Auth] signup setRealtimeAuth completed', { result })
+        await supabase.realtime.setAuth(data.session?.access_token)
       } catch (e) {
-        console.warn('Failed to set realtime auth token after signup:', e)
+        console.warn('[Auth] setRealtimeAuth failed after signup:', e)
       }
-
-      // Create profile
+      const now = new Date().toISOString()
       const { data: profile } = await supabase
         .from('profiles')
-        .insert([
-          {
-            id: data.user?.id,
-            email,
-            display_name: displayName,
-          },
-        ])
+        .insert([{ id: data.user?.id, email, display_name: displayName, password_changed_at: now }])
         .select()
         .single()
-
       set({ user: profile, loading: false })
     } catch (error) {
       console.error('Signup error:', error)
@@ -151,15 +173,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    console.debug('[Auth] logout start')
     const { error } = await supabase.auth.signOut()
-    console.debug('[Auth] signOut result', { error })
     try {
-      const result = await supabase.realtime.setAuth()
-      console.debug('[Auth] cleared realtime auth token', { result })
+      await supabase.realtime.setAuth()
     } catch (e) {
-      console.warn('Failed to clear realtime auth token on logout:', e)
+      console.warn('[Auth] Failed to clear realtime auth token on logout:', e)
     }
-    set({ user: null, loading: false })
+    set({ user: null, pendingUser: null, passwordExpired: false, verified: false, loading: false })
   },
 }))

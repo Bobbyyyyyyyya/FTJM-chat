@@ -4,16 +4,17 @@ import { useAuthStore } from './hooks/useAuth'
 import { usePresence } from './hooks/usePresence'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
+import SessionLockScreen from './components/SessionLockScreen'
+import PasswordExpiredScreen from './components/PasswordExpiredScreen'
 import UpdateNotifier from './components/UpdateNotifier'
 import './App.css'
 
 function App() {
-  const { user, loading, checkAuth } = useAuthStore()
+  const { user, pendingUser, passwordExpired, verified, loading, checkAuth } = useAuthStore()
   const [isInitialized, setIsInitialized] = useState(false)
   const onlineUsers = usePresence(user?.id)
 
   useEffect(() => {
-    // Check if user is already logged in
     checkAuth().then(() => setIsInitialized(true))
   }, [checkAuth])
 
@@ -48,9 +49,52 @@ function App() {
     )
   }
 
+  if (user) {
+    return (
+      <>
+        <ChatPage onlineUsers={onlineUsers} />
+        <UpdateNotifier />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
+          }}
+        />
+      </>
+    )
+  }
+
+  if (pendingUser && verified && passwordExpired) {
+    return (
+      <>
+        <PasswordExpiredScreen />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
+          }}
+        />
+      </>
+    )
+  }
+
+  if (pendingUser) {
+    return (
+      <>
+        <SessionLockScreen />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px' },
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <>
-      {user ? <ChatPage onlineUsers={onlineUsers} /> : <LoginPage />}
+      <LoginPage />
       <UpdateNotifier />
       <Toaster
         position="top-right"
