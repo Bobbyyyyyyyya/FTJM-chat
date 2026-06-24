@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { updateProfile, getProfile } from '@/lib/db'
 import { useAuthStore } from '@/hooks/useAuth'
+import { uploadSound, playSound } from '@/lib/storage'
 
 interface NotificationSettings {
   enable_sounds: boolean
@@ -170,6 +171,21 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
     setNotif((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handleUploadSound = async (key: 'message_sound' | 'post_sound' | 'ringtone_url') => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'audio/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file || !user?.id) return
+      const url = await uploadSound(file, user.id)
+      if (url) {
+        setNotifField(key, url)
+      }
+    }
+    input.click()
+  }
+
   const setThemeField = <K extends keyof CustomTheme>(key: K, value: CustomTheme[K]) => {
     const updated = { ...theme, [key]: value }
     setTheme(updated)
@@ -233,9 +249,9 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                   <ToggleRow label="New posts in General" value={notif.notify_new_posts} onChange={(v) => setNotifField('notify_new_posts', v)} />
                 </div>
                 <div className="mt-4 space-y-3">
-                  <SoundInput label="Message sound URL" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} />
-                  <SoundInput label="Post sound URL" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} />
-                  <SoundInput label="Ringtone URL" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} />
+                  <SoundInput label="Message sound URL" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} onPreview={() => notif.message_sound && playSound(notif.message_sound)} onUpload={() => handleUploadSound('message_sound')} />
+                  <SoundInput label="Post sound URL" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} onPreview={() => notif.post_sound && playSound(notif.post_sound)} onUpload={() => handleUploadSound('post_sound')} />
+                  <SoundInput label="Ringtone URL" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} onPreview={() => notif.ringtone_url && playSound(notif.ringtone_url)} onUpload={() => handleUploadSound('ringtone_url')} />
                 </div>
               </div>
             </>
@@ -363,13 +379,23 @@ function HexInput({ label, value, onChange }: { label: string; value: string; on
   )
 }
 
-function SoundInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function SoundInput({ label, value, onChange, onPreview, onUpload }: { label: string; value: string; onChange: (v: string) => void; onPreview: () => void; onUpload: () => void }) {
   return (
     <div>
       <label className="text-xs text-muted font-medium mb-1 block">{label}</label>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder="https://example.com/sound.mp3"
-        className="input-field !py-2 !text-xs" />
+      <div className="flex gap-2">
+        <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder="https://example.com/sound.mp3"
+          className="input-field !py-2 !text-xs flex-1" />
+        <button onClick={onPreview} disabled={!value}
+          className="px-3 py-2 rounded-xl text-xs font-medium bg-surface-muted text-secondary hover:bg-surface-hover disabled:opacity-40 transition-all">
+          Preview
+        </button>
+        <button onClick={onUpload}
+          className="px-3 py-2 rounded-xl text-xs font-medium bg-accent text-accent-content hover:bg-accent-hover transition-all">
+          Upload
+        </button>
+      </div>
     </div>
   )
 }

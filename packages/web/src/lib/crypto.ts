@@ -18,9 +18,18 @@ export function decryptText(ciphertext: string) {
   try {
     const bytes = CryptoJS.AES.decrypt(payload, SECRET_KEY)
     const decrypted = bytes.toString(CryptoJS.enc.Utf8)
+    if (!decrypted) {
+      console.warn('[crypto] decrypt returned empty string, payload length:', payload.length, 'starts with:', payload.slice(0, 20))
+      try {
+        const testParsed = CryptoJS.enc.Base64.parse(payload)
+        console.warn('[crypto] base64 parse succeeded, length:', testParsed.sigBytes)
+      } catch {
+        console.warn('[crypto] base64 parse FAILED - payload is not valid base64')
+      }
+    }
     return decrypted || ciphertext
   } catch (error) {
-    console.error('Failed to decrypt text:', error)
+    console.error('[crypto] Failed to decrypt text:', error)
     return ciphertext
   }
 }

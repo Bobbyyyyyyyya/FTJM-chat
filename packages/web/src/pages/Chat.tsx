@@ -462,10 +462,23 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   const closeProfile = () => setProfilePreview(null)
 
+  function playNotificationSound(type: 'dm' | 'post') {
+    const ns = (myProfile?.notification_settings || {}) as any
+    if (!ns.enable_sounds) return
+    const url = type === 'dm' ? ns.message_sound : ns.post_sound
+    if (!url) return
+    try {
+      const audio = new Audio(url)
+      audio.volume = 0.5
+      audio.play().catch(() => {})
+    } catch {}
+  }
+
   function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
     const ns = (myProfile?.notification_settings || {}) as any
     if (type === 'dm' && ns.notify_new_messages === false) return
     if (type === 'post' && ns.notify_new_posts === false) return
+    playNotificationSound(type)
     const text = body.slice(0, 200)
     if ((window as any).electron?.notify) {
       (window as any).electron.notify(title, text)
