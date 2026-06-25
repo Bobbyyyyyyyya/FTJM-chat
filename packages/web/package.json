@@ -1,6 +1,6 @@
 {
   "name": "@ftjm/web",
-  "version": "0.5.23",
+  "version": "0.5.24",
   "description": "React web app",
   "type": "module",
   "scripts": {
