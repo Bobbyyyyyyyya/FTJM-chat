@@ -38,8 +38,12 @@ jobs:
       - name: Setup env files
         shell: bash
         run: |
-          cp .env.example .env.local
-          cp packages/web/.env.example packages/web/.env.local
+          cat > .env.local << EOF
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
+          EOF
+          cp .env.local packages/web/.env.local
 
       - name: Install Linux build tools
         if: matrix.os == 'ubuntu-latest'

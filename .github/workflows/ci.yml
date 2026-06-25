@@ -24,7 +24,13 @@ jobs:
         run: pnpm install
 
       - name: Setup env files
-        run: cp .env.example .env.local
+        run: |
+          cat > .env.local << EOF
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
+          EOF
+          cp .env.local packages/web/.env.local
 
       - name: Type check
         run: pnpm type-check
@@ -46,7 +52,13 @@ jobs:
         run: pnpm install
 
       - name: Setup env files
-        run: cp .env.example .env.local
+        run: |
+          cat > .env.local << EOF
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
+          EOF
+          cp .env.local packages/web/.env.local
 
       - name: Build
         run: pnpm build
