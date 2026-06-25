@@ -5,6 +5,7 @@ import { join, extname } from 'path'
 const dirs = [
   'packages/web/dist',
   'packages/main/dist',
+  'packages/main/web-dist',
 ]
 
 const options = {
@@ -14,7 +15,7 @@ const options = {
   deadCodeInjection: true,
   deadCodeInjectionThreshold: 0.4,
   debugProtection: true,
-  debugProtectionInterval: true,
+  debugProtectionInterval: 2000,
   disableConsoleOutput: true,
   identifierNamesGenerator: 'hexadecimal',
   log: false,
@@ -26,7 +27,7 @@ const options = {
   splitStringsChunkLength: 10,
   stringArray: true,
   stringArrayCallsTransform: true,
-  stringArrayEncoding: 'rc4',
+  stringArrayEncoding: ['rc4'],
   stringArrayIndexShift: true,
   stringArrayRotate: true,
   stringArrayShuffle: true,
