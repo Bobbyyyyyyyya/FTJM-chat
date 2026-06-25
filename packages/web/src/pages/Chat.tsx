@@ -446,6 +446,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }
 
   function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
+    const ns = (myProfile?.notification_settings || {}) as any
+    if (type === 'dm' && ns.notify_new_messages === false) return
+    if (type === 'post' && ns.notify_new_posts === false) return
     playNotificationSound(type)
     const text = body.slice(0, 200)
     const sendViaElectron = () => {
