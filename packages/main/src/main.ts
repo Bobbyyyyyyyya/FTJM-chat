@@ -8,6 +8,7 @@ import {
   nativeImage,
   shell,
   safeStorage,
+  desktopCapturer,
 } from 'electron'
 import pkg from 'electron-updater'
 import https from 'https'
@@ -247,17 +248,34 @@ function checkGithubRelease() {
 }
 
 function setupIpcHandlers() {
+  ipcMain.handle('get-screen-sources', async () => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] })
+      return sources.map((s) => ({ id: s.id, name: s.name, thumbnailURL: s.thumbnail.toDataURL() }))
+    } catch (err) {
+      console.error('desktopCapturer error:', err)
+      return []
+    }
+  })
+
   ipcMain.handle('notify', (_event, { title, body, urgency }) => {
-    const n = new Notification({
-      title,
-      body,
-      urgency: urgency || 'normal',
-    })
-    n.on('click', () => {
-      showWindow()
-      mainWindow?.webContents.send('notification-clicked', { title, body })
-    })
-    n.show()
+    try {
+      const n = new Notification({
+        title,
+        body,
+        subtitle: '',
+        silent: false,
+        urgency: urgency || 'normal',
+        hasReply: false,
+      })
+      n.on('click', () => {
+        showWindow()
+        mainWindow?.webContents.send('notification-clicked', { title, body })
+      })
+      n.show()
+    } catch (err) {
+      console.error('Notification error:', err)
+    }
   })
 
   ipcMain.handle('get-window-focused', () => {

@@ -306,7 +306,27 @@ export function useVoiceCall(
   async function startScreenShare() {
     if (callState !== 'connected' || !activeCall || !userId) return
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      let stream: MediaStream | null = null
+      // Electron: use desktopCapturer via IPC + getUserMedia
+      if ((window as any).electron?.getScreenSources) {
+        const sources = await (window as any).electron.getScreenSources()
+        if (sources.length === 0) throw new Error('Geen schermbronnen gevonden')
+        const source = sources[0]
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: source.id,
+            },
+          } as any,
+        })
+      }
+      // Browser fallback
+      if (!stream) {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      }
+      if (!stream) throw new Error('Kon geen schermstream krijgen')
       screenStreamRef.current = stream
       setIsScreenSharing(true)
       const screenTrack = stream.getVideoTracks()[0]

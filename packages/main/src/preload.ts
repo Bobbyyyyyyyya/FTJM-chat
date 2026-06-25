@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electron', {
+  getScreenSources: () => ipcRenderer.invoke('get-screen-sources'),
   notify: (title: string, body: string, urgency?: string) =>
     ipcRenderer.invoke('notify', { title, body, urgency }),
   isWindowFocused: () => ipcRenderer.invoke('get-window-focused'),

@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     electron: {
+      getScreenSources: () => Promise<{ id: string; name: string; thumbnailURL: string }[]>
       notify: (title: string, body: string, urgency?: string) => Promise<void>
       isWindowFocused: () => Promise<boolean>
       showWindow: () => Promise<void>

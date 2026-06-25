@@ -444,14 +444,16 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     if (type === 'post' && ns.notify_new_posts === false) return
     playNotificationSound(type)
     const text = body.slice(0, 200)
+    // Try both web Notification and Electron IPC for maximum compatibility
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try { new Notification(title, { body: text }) } catch {}
+    }
     if ((window as any).electron?.notify) {
-      (window as any).electron.notify(title, text).catch(() => {
-        if (Notification.permission === 'granted') {
-          new Notification(title, { body: text })
-        }
-      })
-    } else if (Notification.permission === 'granted') {
-      new Notification(title, { body: text })
+      (window as any).electron.notify(title, text).catch(() => {})
+    }
+    // Also request permission if not yet decided (handles first-time use)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
     }
   }
 
