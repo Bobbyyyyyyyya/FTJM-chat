@@ -17,6 +17,10 @@ export interface VoiceCallContextValue {
   toggleMute: () => void
   toggleVideo: () => void
   setLayout: (layout: 'large' | 'compact') => void
+  isScreenSharing: boolean
+  isRemoteScreenSharing: boolean
+  startScreenShare: () => void
+  stopScreenShare: () => void
 }
 
 const VoiceCallContext = createContext<VoiceCallContextValue | null>(null)

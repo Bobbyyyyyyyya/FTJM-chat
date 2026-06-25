@@ -33,6 +33,8 @@ export function useVoiceCall(
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [layout, setLayout] = useState<'large' | 'compact'>('large')
+  const [isScreenSharing, setIsScreenSharing] = useState(false)
+  const [isRemoteScreenSharing, setIsRemoteScreenSharing] = useState(false)
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -42,6 +44,8 @@ export function useVoiceCall(
   const outboundRef = useRef<RealtimeChannel | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const callStateRef = useRef<CallState>('idle')
+  const screenStreamRef = useRef<MediaStream | null>(null)
+  const originalCameraTrackRef = useRef<MediaStreamTrack | null>(null)
 
   activeCallRef.current = activeCall
   callStateRef.current = callState
@@ -265,11 +269,16 @@ export function useVoiceCall(
     localStreamRef.current = null
     outboundRef.current?.unsubscribe()
     outboundRef.current = null
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+    originalCameraTrackRef.current = null
     setRemoteStream(null)
     setLocalStream(null)
     setCallState('idle')
     setActiveCall(null)
     setDuration(0)
+    setIsScreenSharing(false)
+    setIsRemoteScreenSharing(false)
     pendingCandidates.current = []
     pendingOfferRef.current = null
   }
@@ -292,6 +301,107 @@ export function useVoiceCall(
       video.enabled = !video.enabled
       setIsVideoMuted(!video.enabled)
     }
+  }
+
+  async function startScreenShare() {
+    if (callState !== 'connected' || !activeCall || !userId) return
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: { echoCancellation: true, noiseSuppression: true },
+      })
+      screenStreamRef.current = stream
+      setIsScreenSharing(true)
+      const screenTrack = stream.getVideoTracks()[0]
+      screenTrack.onended = () => stopScreenShare()
+      const pc = pcRef.current
+      const outbound = outboundRef.current
+      if (pc) {
+        const senders = pc.getSenders()
+        const videoSender = senders.find((s) => s.track?.kind === 'video')
+        if (videoSender) {
+          const camTrack = localStreamRef.current?.getVideoTracks()[0]
+          if (camTrack) originalCameraTrackRef.current = camTrack
+          await videoSender.replaceTrack(screenTrack)
+          const audioTrack = localStreamRef.current?.getAudioTracks()[0]
+          const newStream = new MediaStream([screenTrack])
+          if (audioTrack) newStream.addTrack(audioTrack)
+          setLocalStream(newStream)
+          localStreamRef.current = newStream
+        } else {
+          pc.addTrack(screenTrack, stream)
+          const audioTrack = localStreamRef.current?.getAudioTracks()[0]
+          const newStream = new MediaStream([screenTrack])
+          if (audioTrack) newStream.addTrack(audioTrack)
+          setLocalStream(newStream)
+          localStreamRef.current = newStream
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          const targetId = activeCall.callerId === userId ? activeCall.receiverId : activeCall.callerId
+          if (outbound) {
+            await outbound.send({
+              type: 'broadcast',
+              event: 'offer',
+              payload: { roomId: activeCall.roomId, sdp: offer.sdp, from: userId, to: targetId },
+            })
+          }
+        }
+        const targetId = activeCall.callerId === userId ? activeCall.receiverId : activeCall.callerId
+        if (outbound) {
+          await outbound.send({
+            type: 'broadcast',
+            event: 'screenshare_status',
+            payload: { isScreenSharing: true, senderId: userId },
+          })
+        }
+      }
+      toast.success('Scherm delen gestart')
+    } catch (err) {
+      console.error('Screen share error:', err)
+      setIsScreenSharing(false)
+      toast.error('Scherm delen mislukt of geannuleerd')
+    }
+  }
+
+  async function stopScreenShare() {
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+    setIsScreenSharing(false)
+    const pc = pcRef.current
+    const outbound = outboundRef.current
+    if (pc) {
+      const senders = pc.getSenders()
+      const videoSender = senders.find((s) => s.track?.kind === 'video')
+      const originalTrack = originalCameraTrackRef.current
+      if (videoSender && originalTrack && originalTrack.readyState === 'live') {
+        await videoSender.replaceTrack(originalTrack)
+        const audioTrack = localStreamRef.current?.getAudioTracks()[0]
+        const newStream = new MediaStream([originalTrack])
+        if (audioTrack) newStream.addTrack(audioTrack)
+        setLocalStream(newStream)
+        localStreamRef.current = newStream
+      } else {
+        if (videoSender) pc.removeTrack(videoSender)
+        const audioTrack = localStreamRef.current?.getAudioTracks()[0]
+        if (audioTrack) {
+          const audioOnly = new MediaStream([audioTrack])
+          setLocalStream(audioOnly)
+          localStreamRef.current = audioOnly
+        }
+      }
+      const targetId = activeCallRef.current?.callerId === userId
+        ? activeCallRef.current?.receiverId
+        : activeCallRef.current?.callerId
+      if (targetId && outbound) {
+        await outbound.send({
+          type: 'broadcast',
+          event: 'screenshare_status',
+          payload: { isScreenSharing: false, senderId: userId },
+        })
+      }
+    }
+    originalCameraTrackRef.current = null
+    toast.info('Scherm delen beëindigd')
   }
 
   useEffect(() => {
@@ -438,6 +548,17 @@ export function useVoiceCall(
         console.log('[call] call_ended ontvangen')
         if (activeCallRef.current) cleanup()
       })
+      .on('broadcast', { event: 'screenshare_status' }, ({ payload }) => {
+        const data = payload as Record<string, unknown>
+        if (data.senderId === userId) return
+        const sharing = !!data.isScreenSharing
+        setIsRemoteScreenSharing(sharing)
+        if (sharing) {
+          toast.info('Beller deelt nu het scherm', { duration: 4000 })
+        } else {
+          toast.info('Beller is gestopt met scherm delen', { duration: 4000 })
+        }
+      })
       .subscribe((status) => {
         console.log('[call] listener channel status:', status)
         if (status === 'CHANNEL_ERROR') {
@@ -466,5 +587,9 @@ export function useVoiceCall(
     toggleMute,
     toggleVideo,
     setLayout,
+    isScreenSharing,
+    isRemoteScreenSharing,
+    startScreenShare,
+    stopScreenShare,
   }
 }

@@ -10,6 +10,7 @@ import {
   Minimize2,
   Maximize2,
   PictureInPicture2,
+  ScreenShare,
 } from 'lucide-react'
 import type { CallState, CallData } from '@/hooks/useVoiceCall'
 
@@ -28,6 +29,9 @@ interface VoiceCallUIProps {
   onToggleMute: () => void
   onToggleVideo: () => void
   onSetLayout: (layout: 'large' | 'compact') => void
+  isScreenSharing: boolean
+  isRemoteScreenSharing: boolean
+  onToggleScreenShare: () => void
 }
 
 export default function VoiceCallUI({
@@ -45,6 +49,9 @@ export default function VoiceCallUI({
   onToggleMute,
   onToggleVideo,
   onSetLayout,
+  isScreenSharing,
+  isRemoteScreenSharing,
+  onToggleScreenShare,
 }: VoiceCallUIProps) {
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
@@ -192,6 +199,14 @@ export default function VoiceCallUI({
             </div>
           </div>
 
+          {/* Remote screen sharing indicator */}
+          {isConnected && isRemoteScreenSharing && (
+            <div className="absolute top-4 left-4 z-30 flex items-center gap-2 bg-emerald-500/20 backdrop-blur-md rounded-xl px-3 py-1.5 border border-emerald-500/30">
+              <ScreenShare className="w-4 h-4 text-emerald-300" />
+              <span className="text-xs font-medium text-emerald-200">Screen wordt gedeeld</span>
+            </div>
+          )}
+
           {/* Local PiP */}
           {isConnected && activeCall.isVideo && localStream && (
             <div className="absolute top-4 right-4 z-30 w-36 h-48 rounded-2xl overflow-hidden border-2 border-white/20 shadow-lg">
@@ -237,7 +252,18 @@ export default function VoiceCallUI({
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
+              {isConnected && (
+                <button onClick={onToggleScreenShare}
+                  className={`flex items-center gap-2 text-xs px-4 py-2 rounded-full border transition-all ${
+                    isScreenSharing
+                      ? 'bg-emerald-500/20 border-emerald-500/35 text-emerald-300'
+                      : 'text-white/30 hover:text-white/60 border-white/5 bg-white/[0.02]'
+                  }`}>
+                  <ScreenShare className="w-3.5 h-3.5" />
+                  <span>{isScreenSharing ? 'Stop' : 'Screen'}</span>
+                </button>
+              )}
               {isConnected && pipSupported && (
                 <button onClick={handleTogglePip}
                   className="flex items-center gap-2 text-white/30 hover:text-white/60 text-xs px-4 py-2 rounded-full border border-white/5 bg-white/[0.02] transition-all">
@@ -285,6 +311,12 @@ export default function VoiceCallUI({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {isConnected && (
+              <button onClick={onToggleScreenShare}
+                className={`p-2 rounded-full transition-all ${isScreenSharing ? 'bg-emerald-600 text-white' : 'text-neutral-400 hover:text-white bg-transparent'}`}>
+                <ScreenShare className="w-4 h-4" />
+              </button>
+            )}
             {isConnected && pipSupported && (
               <button onClick={handleTogglePip}
                 className={`p-2 rounded-full transition-all ${pipActive ? 'bg-sky-600 text-white' : 'text-neutral-400 hover:text-white bg-transparent'}`}>
@@ -308,6 +340,12 @@ export default function VoiceCallUI({
               <PhoneOff className="w-4 h-4" />
             </button>
           </div>
+          {isRemoteScreenSharing && (
+            <div className="absolute -top-2 -right-2 z-30 flex items-center gap-1 bg-emerald-500/20 rounded-full px-2 py-0.5 border border-emerald-500/30">
+              <ScreenShare className="w-3 h-3 text-emerald-300" />
+              <span className="text-[9px] font-medium text-emerald-200">Screen</span>
+            </div>
+          )}
         </motion.div>
       ) : null}
     </AnimatePresence>

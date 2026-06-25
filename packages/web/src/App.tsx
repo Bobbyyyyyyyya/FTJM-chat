@@ -39,6 +39,10 @@ function App() {
     toggleMute,
     toggleVideo,
     setLayout,
+    isScreenSharing,
+    isRemoteScreenSharing,
+    startScreenShare,
+    stopScreenShare,
   } = voiceCall
 
   // Ringtone + notification for incoming calls
@@ -133,6 +137,10 @@ function App() {
     toggleMute,
     toggleVideo,
     setLayout,
+    isScreenSharing,
+    isRemoteScreenSharing,
+    startScreenShare,
+    stopScreenShare,
   }
 
   return (
@@ -159,6 +167,9 @@ function App() {
         onToggleMute={toggleMute}
         onToggleVideo={toggleVideo}
         onSetLayout={setLayout}
+        isScreenSharing={isScreenSharing}
+        isRemoteScreenSharing={isRemoteScreenSharing}
+        onToggleScreenShare={isScreenSharing ? stopScreenShare : startScreenShare}
       />
       <UpdateNotifier />
       <Toaster
