@@ -52,17 +52,11 @@ function App() {
       if (activeCall) {
         const title = `Incoming call from ${activeCall.callerName}`
         const body = activeCall.isVideo ? 'Video call' : 'Voice call'
-        ;(async () => {
-          const focused = (window as any).electron?.isWindowFocused
-            ? await (window as any).electron.isWindowFocused().catch(() => false)
-            : !document.hidden
-          if (focused) return
-          if ((window as any).electron?.notify) {
-            (window as any).electron.notify(title, body, 'critical')
-          } else if (Notification.permission === 'granted') {
-            new Notification(title, { body })
-          }
-        })()
+        if ((window as any).electron?.notify) {
+          (window as any).electron.notify(title, body, 'critical')
+        } else if (Notification.permission === 'granted') {
+          new Notification(title, { body })
+        }
       }
     } else {
       stopRingtone()

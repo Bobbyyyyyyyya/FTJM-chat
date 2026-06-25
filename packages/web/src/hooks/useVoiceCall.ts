@@ -306,10 +306,7 @@ export function useVoiceCall(
   async function startScreenShare() {
     if (callState !== 'connected' || !activeCall || !userId) return
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: { echoCancellation: true, noiseSuppression: true },
-      })
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
       screenStreamRef.current = stream
       setIsScreenSharing(true)
       const screenTrack = stream.getVideoTracks()[0]
