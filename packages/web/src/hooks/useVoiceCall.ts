@@ -8,6 +8,7 @@ import {
   flushIceCandidates,
 } from '@/lib/webrtc'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { playSyntheticSound } from '@/utils/helpers'
 
 export type CallState = 'idle' | 'calling' | 'ringing' | 'connected'
 
@@ -24,6 +25,7 @@ export function useVoiceCall(
   userId: string | undefined,
   userName: string,
   userAvatar?: string,
+  ringtoneUrl?: string,
 ) {
   const [callState, setCallState] = useState<CallState>('idle')
   const [activeCall, setActiveCall] = useState<CallData | null>(null)
@@ -46,6 +48,9 @@ export function useVoiceCall(
   const callStateRef = useRef<CallState>('idle')
   const screenStreamRef = useRef<MediaStream | null>(null)
   const originalCameraTrackRef = useRef<MediaStreamTrack | null>(null)
+  const incomingSoundRef = useRef<HTMLAudioElement | null>(null)
+  const dialingSoundRef = useRef<{ stop: () => void } | null>(null)
+  const endCallSoundRef = useRef<{ stop: () => void } | null>(null)
 
   activeCallRef.current = activeCall
   callStateRef.current = callState
@@ -587,6 +592,60 @@ export function useVoiceCall(
       channel.unsubscribe()
     }
   }, [userId])
+
+  // Manage call sounds based on callState
+  const prevCallStateRef = useRef<CallState>('idle')
+  useEffect(() => {
+    const prev = prevCallStateRef.current
+    prevCallStateRef.current = callState
+
+    // Stop incoming ringtone
+    if (incomingSoundRef.current) {
+      incomingSoundRef.current.pause()
+      incomingSoundRef.current = null
+    }
+
+    // Stop dialing sound
+    if (dialingSoundRef.current) {
+      dialingSoundRef.current.stop()
+      dialingSoundRef.current = null
+    }
+
+    if (callState === 'ringing') {
+      // Incoming call — play ringtone from profile or fallback to synthetic
+      if (ringtoneUrl) {
+        const audio = new Audio(ringtoneUrl)
+        audio.loop = true
+        audio.volume = 0.5
+        audio.play().catch(() => {
+          playSyntheticSound('ringing')
+        })
+        incomingSoundRef.current = audio
+      } else {
+        playSyntheticSound('ringing')
+      }
+    } else if (callState === 'calling') {
+      // Outgoing call — play dialing sound (repeating)
+      dialingSoundRef.current = playSyntheticSound('dialing')
+    } else if (callState === 'connected' && prev === 'ringing') {
+      // Answered — play short connected tone
+      playSyntheticSound('end_call')
+    } else if (callState === 'idle' && prev !== 'idle' && prev !== 'calling') {
+      // Call ended — play end tone
+      const end = playSyntheticSound('end_call')
+      endCallSoundRef.current = end
+      setTimeout(() => { endCallSoundRef.current = null }, 500)
+    }
+
+    return () => {
+      incomingSoundRef.current?.pause()
+      incomingSoundRef.current = null
+      dialingSoundRef.current?.stop()
+      dialingSoundRef.current = null
+      endCallSoundRef.current?.stop()
+      endCallSoundRef.current = null
+    }
+  }, [callState, ringtoneUrl])
 
   return {
     callState,

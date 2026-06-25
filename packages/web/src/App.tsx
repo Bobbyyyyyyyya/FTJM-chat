@@ -4,7 +4,6 @@ import { useAuthStore } from './hooks/useAuth'
 import { useVoiceCall } from './hooks/useVoiceCall'
 import { VoiceCallProvider } from './hooks/useVoiceCallContext'
 import { usePresence } from './hooks/usePresence'
-import { startRingtone, stopRingtone } from './lib/ringtone'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
 import SessionLockScreen from './components/SessionLockScreen'
@@ -22,6 +21,7 @@ function App() {
     activeIdentity?.id,
     activeIdentity?.display_name || 'Gebruiker',
     activeIdentity?.photo_url || undefined,
+    undefined,
   )
   const {
     callState,
@@ -45,10 +45,9 @@ function App() {
     stopScreenShare,
   } = voiceCall
 
-  // Ringtone + notification for incoming calls
+  // Notification for incoming calls (ringtone is managed inside useVoiceCall)
   useEffect(() => {
     if (callState === 'ringing') {
-      startRingtone()
       if (activeCall) {
         const title = `Incoming call from ${activeCall.callerName}`
         const body = activeCall.isVideo ? 'Video call' : 'Voice call'
@@ -58,10 +57,8 @@ function App() {
           new Notification(title, { body })
         }
       }
-    } else {
-      stopRingtone()
     }
-    return stopRingtone
+    return undefined
   }, [callState, activeCall])
 
   // Handle notification click → focus window
