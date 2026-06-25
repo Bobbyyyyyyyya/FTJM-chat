@@ -41,24 +41,40 @@ function App() {
     setLayout,
   } = voiceCall
 
-  // Ringtone for incoming calls
+  // Ringtone + notification for incoming calls
   useEffect(() => {
     if (callState === 'ringing') {
       startRingtone()
       if (activeCall) {
         const title = `Incoming call from ${activeCall.callerName}`
         const body = activeCall.isVideo ? 'Video call' : 'Voice call'
-        if ((window as any).electron?.notify) {
-          (window as any).electron.notify(title, body, 'critical')
-        } else if (Notification.permission === 'granted') {
-          new Notification(title, { body })
-        }
+        ;(async () => {
+          const focused = (window as any).electron?.isWindowFocused
+            ? await (window as any).electron.isWindowFocused().catch(() => false)
+            : !document.hidden
+          if (focused) return
+          if ((window as any).electron?.notify) {
+            (window as any).electron.notify(title, body, 'critical')
+          } else if (Notification.permission === 'granted') {
+            new Notification(title, { body })
+          }
+        })()
       }
     } else {
       stopRingtone()
     }
     return stopRingtone
   }, [callState, activeCall])
+
+  // Handle notification click → focus window
+  useEffect(() => {
+    const cleanup = (window as any).electron?.onNotificationClicked?.((data: any) => {
+      if ((window as any).electron?.showWindow) {
+        (window as any).electron.showWindow()
+      }
+    })
+    return () => cleanup?.()
+  }, [])
 
   useEffect(() => {
     checkAuth().then(() => setIsInitialized(true))

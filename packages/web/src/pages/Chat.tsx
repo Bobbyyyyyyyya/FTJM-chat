@@ -438,26 +438,34 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     } catch {}
   }
 
+  async function isWindowFocused(): Promise<boolean> {
+    if ((window as any).electron?.isWindowFocused) {
+      try {
+        return await (window as any).electron.isWindowFocused()
+      } catch {}
+    }
+    return !document.hidden
+  }
+
   function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
     const ns = (myProfile?.notification_settings || {}) as any
     if (type === 'dm' && ns.notify_new_messages === false) return
     if (type === 'post' && ns.notify_new_posts === false) return
     playNotificationSound(type)
     const text = body.slice(0, 200)
-    const sendViaElectron = () => {
+    const show = async () => {
+      if (await isWindowFocused()) return
       if ((window as any).electron?.notify) {
         (window as any).electron.notify(title, text).catch(() => {
           if (Notification.permission === 'granted') {
             new Notification(title, { body: text })
           }
         })
-        return true
+      } else if (Notification.permission === 'granted') {
+        new Notification(title, { body: text })
       }
-      return false
     }
-    if (!sendViaElectron() && Notification.permission === 'granted') {
-      new Notification(title, { body: text })
-    }
+    show()
   }
 
   function handleStartCall(video: boolean) {
