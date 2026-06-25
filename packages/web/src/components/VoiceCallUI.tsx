@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Phone,
@@ -9,6 +9,7 @@ import {
   VideoOff,
   Minimize2,
   Maximize2,
+  PictureInPicture2,
 } from 'lucide-react'
 import type { CallState, CallData } from '@/hooks/useVoiceCall'
 
@@ -48,6 +49,7 @@ export default function VoiceCallUI({
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
+  const [pipActive, setPipActive] = useState(false)
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
@@ -64,12 +66,52 @@ export default function VoiceCallUI({
     }
   }, [localStream])
 
+  // Exit PiP when call ends
+  useEffect(() => {
+    if (callState !== 'connected' && pipActive) {
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture().catch(() => {})
+      }
+      setPipActive(false)
+    }
+  }, [callState, pipActive])
+
+  // Listen for PiP close
+  useEffect(() => {
+    const handleLeavePip = () => setPipActive(false)
+    const video = remoteVideoRef.current
+    if (video) {
+      video.addEventListener('leavepictureinpicture', handleLeavePip)
+    }
+    return () => {
+      if (video) {
+        video.removeEventListener('leavepictureinpicture', handleLeavePip)
+      }
+    }
+  }, [remoteStream])
+
+  async function handleTogglePip() {
+    if (pipActive) {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture()
+      }
+      setPipActive(false)
+    } else if (remoteVideoRef.current) {
+      try {
+        await remoteVideoRef.current.requestPictureInPicture()
+        setPipActive(true)
+      } catch {
+        console.warn('PiP not supported')
+      }
+    }
+  }
+
   if (callState === 'idle' || !activeCall) return null
 
   const isIncoming = callState === 'ringing'
   const isOutgoing = callState === 'calling'
   const isConnected = callState === 'connected'
-  const isCaller = activeCall.callerId === activeCall.receiverId
+  const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
 
   return (
     <>
@@ -79,14 +121,14 @@ export default function VoiceCallUI({
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className="fixed inset-0 w-full h-full object-cover z-[199]"
+            className={`fixed inset-0 w-full h-full object-cover z-[199] ${pipActive ? 'hidden' : ''}`}
           />
         ) : (
           <audio ref={remoteAudioRef} autoPlay playsInline />
         )
       )}
       <AnimatePresence>
-      {layout === 'large' ? (
+      {layout === 'large' && !pipActive ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -191,14 +233,24 @@ export default function VoiceCallUI({
               )}
             </div>
 
-            <button onClick={() => onSetLayout('compact')}
-              className="flex items-center gap-2 text-white/30 hover:text-white/60 text-xs px-4 py-2 rounded-full border border-white/5 bg-white/[0.02] transition-all">
-              <Minimize2 className="w-3.5 h-3.5" />
-              <span>Minimize</span>
-            </button>
+            <div className="flex items-center gap-3">
+              {isConnected && pipSupported && (
+                <button onClick={handleTogglePip}
+                  className="flex items-center gap-2 text-white/30 hover:text-white/60 text-xs px-4 py-2 rounded-full border border-white/5 bg-white/[0.02] transition-all">
+                  <PictureInPicture2 className="w-3.5 h-3.5" />
+                  <span>PiP</span>
+                </button>
+              )}
+              <button onClick={() => onSetLayout('compact')}
+                className="flex items-center gap-2 text-white/30 hover:text-white/60 text-xs px-4 py-2 rounded-full border border-white/5 bg-white/[0.02] transition-all">
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Minimize</span>
+              </button>
+            </div>
           </div>
         </motion.div>
-      ) : (
+      ) : null}
+      {layout === 'compact' || pipActive ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.85, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -227,23 +279,31 @@ export default function VoiceCallUI({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {isConnected && pipSupported && (
+              <button onClick={handleTogglePip}
+                className={`p-2 rounded-full transition-all ${pipActive ? 'bg-sky-600 text-white' : 'text-neutral-400 hover:text-white bg-transparent'}`}>
+                <PictureInPicture2 className="w-4 h-4" />
+              </button>
+            )}
             {isConnected && (
               <button onClick={onToggleMute}
                 className={`p-2 rounded-full transition-all ${isMuted ? 'bg-red-500 text-white' : 'text-neutral-400 hover:text-white bg-transparent'}`}>
                 {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
             )}
-            <button onClick={() => onSetLayout('large')}
-              className="p-1.5 text-neutral-400 hover:text-white rounded-lg bg-transparent transition-all">
-              <Maximize2 className="w-4 h-4" />
-            </button>
+            {!pipActive && (
+              <button onClick={() => onSetLayout('large')}
+                className="p-1.5 text-neutral-400 hover:text-white rounded-lg bg-transparent transition-all">
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
             <button onClick={onEnd}
               className="p-2.5 bg-red-500 text-white rounded-full flex items-center justify-center transition-all active:scale-90">
               <PhoneOff className="w-4 h-4" />
             </button>
           </div>
         </motion.div>
-      )}
+      ) : null}
     </AnimatePresence>
     </>
   )
