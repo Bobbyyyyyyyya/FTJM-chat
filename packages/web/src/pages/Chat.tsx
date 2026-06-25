@@ -18,6 +18,7 @@ import {
   subscribeToTypingStatus,
   subscribeToGeneralChat,
   getProfile,
+  updateProfile,
   type Conversation,
   type Message,
   type Post,
@@ -100,6 +101,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     if (!user?.id) return
     getProfile(user.id).then((p) => {
       if (!p) return
+      // Auto-enable notification defaults if not set (so user doesn't have to find settings)
+      if (!p.notification_settings || typeof p.notification_settings !== 'object') {
+        const defaults = { enable_sounds: true, notify_new_messages: true, notify_new_posts: true, notify_mentions: true, message_sound: '', post_sound: '', ringtone_url: '' }
+        updateProfile(user.id, { notification_settings: defaults } as any)
+        p.notification_settings = defaults as any
+      }
       setMyProfile(p)
       if (p.use_custom_theme && p.custom_theme) {
         const merged = { ...p.custom_theme as any }
@@ -439,9 +446,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }
 
   function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
-    const ns = (myProfile?.notification_settings || {}) as any
-    if (type === 'dm' && ns.notify_new_messages === false) return
-    if (type === 'post' && ns.notify_new_posts === false) return
     playNotificationSound(type)
     const text = body.slice(0, 200)
     const sendViaElectron = () => {
