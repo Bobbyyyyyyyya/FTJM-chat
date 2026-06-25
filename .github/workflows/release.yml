@@ -37,11 +37,13 @@ jobs:
 
       - name: Setup env files
         shell: bash
-        run: cp .env.example .env.local
+        run: |
+          cp .env.example .env.local
+          cp packages/web/.env.example packages/web/.env.local
 
       - name: Install Linux build tools
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot
+        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
 
       - name: Build
         run: pnpm build
