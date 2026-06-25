@@ -49,14 +49,19 @@ export default function VoiceCallUI({
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
+  const compactVideoRef = useRef<HTMLVideoElement>(null)
   const [pipActive, setPipActive] = useState(false)
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream
+    const stream = remoteStream
+    if (remoteVideoRef.current && stream) {
+      remoteVideoRef.current.srcObject = stream
     }
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream
+    if (compactVideoRef.current && stream) {
+      compactVideoRef.current.srcObject = stream
+    }
+    if (remoteAudioRef.current && stream) {
+      remoteAudioRef.current.srcObject = stream
     }
   }, [remoteStream])
 
@@ -76,29 +81,29 @@ export default function VoiceCallUI({
     }
   }, [callState, pipActive])
 
-  // Listen for PiP close
+  // Listen for PiP close on both video elements
   useEffect(() => {
     const handleLeavePip = () => setPipActive(false)
-    const video = remoteVideoRef.current
-    if (video) {
-      video.addEventListener('leavepictureinpicture', handleLeavePip)
-    }
+    const v1 = remoteVideoRef.current
+    const v2 = compactVideoRef.current
+    if (v1) v1.addEventListener('leavepictureinpicture', handleLeavePip)
+    if (v2) v2.addEventListener('leavepictureinpicture', handleLeavePip)
     return () => {
-      if (video) {
-        video.removeEventListener('leavepictureinpicture', handleLeavePip)
-      }
+      if (v1) v1.removeEventListener('leavepictureinpicture', handleLeavePip)
+      if (v2) v2.removeEventListener('leavepictureinpicture', handleLeavePip)
     }
   }, [remoteStream])
 
   async function handleTogglePip() {
+    const video = remoteVideoRef.current || compactVideoRef.current
     if (pipActive) {
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture()
       }
       setPipActive(false)
-    } else if (remoteVideoRef.current) {
+    } else if (video) {
       try {
-        await remoteVideoRef.current.requestPictureInPicture()
+        await video.requestPictureInPicture()
         setPipActive(true)
       } catch {
         console.warn('PiP not supported')
@@ -115,16 +120,15 @@ export default function VoiceCallUI({
 
   return (
     <>
-      {isConnected && remoteStream && (
-        activeCall.isVideo && remoteStream.getVideoTracks().length > 0 ? (
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      {layout === 'large' && !pipActive && isConnected && remoteStream && (
+        activeCall.isVideo && remoteStream.getVideoTracks().length > 0 && (
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`fixed inset-0 w-full h-full object-cover z-[199] ${pipActive ? 'hidden' : ''}`}
+            className="fixed inset-0 w-full h-full object-cover z-[199]"
           />
-        ) : (
-          <audio ref={remoteAudioRef} autoPlay playsInline />
         )
       )}
       <AnimatePresence>
@@ -259,7 +263,9 @@ export default function VoiceCallUI({
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center shrink-0">
-              {activeCall.callerAvatar ? (
+              {!pipActive && isConnected && activeCall.isVideo && remoteStream && remoteStream.getVideoTracks().length > 0 ? (
+                <video ref={compactVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              ) : activeCall.callerAvatar ? (
                 <img src={activeCall.callerAvatar} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-xs font-semibold text-white">
