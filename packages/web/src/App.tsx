@@ -52,15 +52,10 @@ function App() {
       if (activeCall) {
         const title = `Incoming call from ${activeCall.callerName}`
         const body = activeCall.isVideo ? 'Video call' : 'Voice call'
-        // Try both web Notification and Electron IPC
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          try { new Notification(title, { body }) } catch {}
-        }
         if ((window as any).electron?.notify) {
           (window as any).electron.notify(title, body, 'critical')
-        }
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-          Notification.requestPermission()
+        } else if (Notification.permission === 'granted') {
+          new Notification(title, { body })
         }
       }
     } else {
