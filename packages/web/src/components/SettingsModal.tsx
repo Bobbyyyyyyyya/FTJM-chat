@@ -238,6 +238,12 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                     {desktopNotif ? 'Enabled' : 'Enable'}
                   </button>
                 </div>
+                {(window as any).electron?.openNotificationSettings && (
+                  <button onClick={() => (window as any).electron.openNotificationSettings()}
+                    className="mt-2 w-full py-2 rounded-xl text-xs font-medium bg-surface-muted text-secondary hover:bg-surface-hover transition-all">
+                    Open macOS Notification Settings
+                  </button>
+                )}
               </div>
 
               <div className="border-t border-border pt-4">

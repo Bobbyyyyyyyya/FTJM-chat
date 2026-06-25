@@ -7,6 +7,7 @@ declare global {
       showWindow: () => Promise<void>
       onUpdateStatus: (callback: (status: string, data?: any) => void) => () => void
       onNotificationClicked: (callback: (data: { title: string; body: string }) => void) => () => void
+      openNotificationSettings: () => Promise<void>
       checkForUpdates: () => Promise<void>
       openUpdateUrl: (url: string) => Promise<void>
       installUpdate: () => Promise<void>

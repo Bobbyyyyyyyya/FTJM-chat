@@ -142,6 +142,15 @@ function createTray() {
 app.on('ready', () => {
   createWindow()
   createTray()
+  // Show a silent notification on first launch to trigger macOS permission prompt
+  if (isMac) {
+    const permNotification = new Notification({
+      title: 'FTJM Chat',
+      body: 'Notifications will appear here',
+      silent: true,
+    })
+    permNotification.show()
+  }
   if (!isDev) {
     setTimeout(checkForUpdates, 5000)
     setInterval(checkForUpdates, 3600000)
@@ -275,6 +284,12 @@ function setupIpcHandlers() {
       n.show()
     } catch (err) {
       console.error('Notification error:', err)
+    }
+  })
+
+  ipcMain.handle('open-notification-settings', () => {
+    if (isMac) {
+      shell.openExternal('x-apple.systempreferences:com.apple.preference.notifications')
     }
   })
 

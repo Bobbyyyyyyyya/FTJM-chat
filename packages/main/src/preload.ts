@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.invoke('notify', { title, body, urgency }),
   isWindowFocused: () => ipcRenderer.invoke('get-window-focused'),
   showWindow: () => ipcRenderer.invoke('show-window'),
+  openNotificationSettings: () => ipcRenderer.invoke('open-notification-settings'),
   onUpdateStatus: (callback: (status: string, data?: any) => void) => {
     const handler = (_event: any, status: string, data?: any) => callback(status, data)
     ipcRenderer.on('update-status', handler)
