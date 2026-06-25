@@ -71,6 +71,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   const [editingId, setEditingId] = useState<{type: 'dm' | 'general', id: string} | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  const [replyingTo, setReplyingTo] = useState<Post | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [sending, setSending] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
@@ -289,9 +290,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     setSending(true)
     try {
       const encryptedContent = encryptText(messageInput)
-      const newPost = await createPost(user.id, encryptedContent)
+      const newPost = await createPost(user.id, encryptedContent, replyingTo?.id)
       setGeneralChat((prev) => [newPost, ...prev])
       setMessageInput('')
+      setReplyingTo(null)
     } catch (error) {
       console.error('Error sending post:', error)
     } finally {
@@ -951,8 +953,16 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           <p className="text-sm font-semibold text-primary">{authorName}</p>
                           <div className="flex items-center gap-2">
                             <p className="text-[11px] text-muted">{new Date(post.created_at).toLocaleString()}</p>
-                            {isMine && (
-                              <div className="flex gap-1.5">
+                            <div className="flex gap-1.5">
+                              <button onClick={() => setReplyingTo(post)}
+                                className="p-1 text-muted hover:text-accent transition-colors"
+                                title="Reply">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                </svg>
+                              </button>
+                              {isMine && (
+                                <>
                                 <button onClick={() => handleEditPost(post)}
                                   className="p-1 text-muted hover:text-primary transition-colors"
                                   title="Edit">
@@ -967,11 +977,28 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                 </button>
-                              </div>
-                            )}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
+                      {post.parent_id && (() => {
+                        const parentPost = generalChat.find((p) => p.id === post.parent_id)
+                        if (!parentPost) return null
+                        const parentAuthor = getParticipantInfo(parentPost.author_id)
+                        const parentName = parentPost.author_id === user?.id ? 'You' : parentAuthor.display_name
+                        return (
+                          <div className="mb-2 pl-3 border-l-2 border-accent/40 bg-surface-muted/50 rounded-r-lg py-1.5 px-3">
+                            <p className="text-[11px] font-semibold text-accent mb-0.5">
+                              Reageren op {parentName}
+                            </p>
+                            <p className="text-xs text-muted line-clamp-2">
+                              {maybeDecryptText(parentPost.content)}
+                            </p>
+                          </div>
+                        )
+                      })()}
                       {isEditing ? (
                         <div className="flex flex-col gap-2">
                           <input
@@ -1012,6 +1039,34 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
         {/* Input */}
         <div className="bg-surface-glass backdrop-blur-sm border-t border-border px-6 py-4">
+          <AnimatePresence>
+            {replyingTo && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex items-center gap-3 mb-3 max-w-3xl mx-auto pl-1"
+              >
+                <div className="flex-1 flex items-center gap-3 bg-accent/5 rounded-xl px-3 py-2 border border-accent/10">
+                  <div className="h-7 w-0.5 rounded-full bg-accent shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold text-accent">
+                      Reageren op {replyingTo.author_id === user?.id ? 'jezelf' : getParticipantInfo(replyingTo.author_id).display_name}
+                    </p>
+                    <p className="text-xs text-muted truncate">
+                      {maybeDecryptText(replyingTo.content)}
+                    </p>
+                  </div>
+                  <button onClick={() => setReplyingTo(null)}
+                    className="p-1 rounded-lg hover:bg-surface-muted text-muted hover:text-primary transition-all shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div className="flex gap-3 max-w-3xl mx-auto">
             <input
               type="text"

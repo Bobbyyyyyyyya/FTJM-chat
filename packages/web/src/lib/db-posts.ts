@@ -8,6 +8,7 @@ export interface Post {
   author_id: string
   created_at: string
   updated_at: string
+  parent_id?: string | null
 }
 
 // Get all posts (General Chat - public for everyone)
@@ -45,13 +46,15 @@ export async function getPostsByAuthor(authorId: string) {
 // Create a new post in general chat
 export async function createPost(
   authorId: string,
-  content: string
+  content: string,
+  parentId?: string | null
 ) {
   const { data, error } = await supabase
     .from('posts')
     .insert({
       author_id: authorId,
       content,
+      parent_id: parentId || null,
     })
     .select()
     .single()
