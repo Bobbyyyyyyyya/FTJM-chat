@@ -11,6 +11,7 @@ interface NotificationSettings {
   message_sound: string
   post_sound: string
   ringtone_url: string
+  sound_library: Record<string, string>
 }
 
 interface CustomTheme {
@@ -42,6 +43,7 @@ const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   message_sound: '',
   post_sound: '',
   ringtone_url: '',
+  sound_library: {},
 }
 
 const DEFAULT_THEME: CustomTheme = {
@@ -179,11 +181,48 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
       const file = input.files?.[0]
       if (!file) return
       const dataUri = await fileToDataUri(file)
-      if (dataUri) {
-        setNotifField(key, dataUri)
-      }
+      if (!dataUri) return
+      const name = file.name.replace(/\.[^/.]+$/, '') || 'Sound'
+      setNotif((prev) => ({
+        ...prev,
+        [key]: dataUri,
+        sound_library: { ...prev.sound_library, [name]: dataUri },
+      }))
     }
     input.click()
+  }
+
+  const handleAddToLibrary = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'audio/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const dataUri = await fileToDataUri(file)
+      if (!dataUri) return
+      const name = file.name.replace(/\.[^/.]+$/, '') || 'Sound'
+      setNotif((prev) => ({
+        ...prev,
+        sound_library: { ...prev.sound_library, [name]: dataUri },
+      }))
+    }
+    input.click()
+  }
+
+  const handleDeleteFromLibrary = (name: string) => {
+    setNotif((prev) => {
+      const dataUri = prev.sound_library[name]
+      const { [name]: removed, ...rest } = prev.sound_library
+      void removed
+      return {
+        ...prev,
+        sound_library: rest,
+        message_sound: prev.message_sound === dataUri ? '' : prev.message_sound,
+        post_sound: prev.post_sound === dataUri ? '' : prev.post_sound,
+        ringtone_url: prev.ringtone_url === dataUri ? '' : prev.ringtone_url,
+      }
+    })
   }
 
   const setThemeField = <K extends keyof CustomTheme>(key: K, value: CustomTheme[K]) => {
@@ -255,9 +294,41 @@ export default function SettingsModal({ isOpen, onClose }: { isOpen: boolean; on
                   <ToggleRow label="New posts in General" value={notif.notify_new_posts} onChange={(v) => setNotifField('notify_new_posts', v)} />
                 </div>
                 <div className="mt-4 space-y-3">
-                  <SoundInput label="Message sound URL" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} onPreview={() => notif.message_sound && playSound(notif.message_sound)} onUpload={() => handleUploadSound('message_sound')} />
-                  <SoundInput label="Post sound URL" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} onPreview={() => notif.post_sound && playSound(notif.post_sound)} onUpload={() => handleUploadSound('post_sound')} />
-                  <SoundInput label="Ringtone URL" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} onPreview={() => notif.ringtone_url && playSound(notif.ringtone_url)} onUpload={() => handleUploadSound('ringtone_url')} />
+                  <SoundInput label="Message sound" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} onPreview={() => notif.message_sound && playSound(notif.message_sound)} onUpload={() => handleUploadSound('message_sound')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('message_sound', uri)} />
+                  <SoundInput label="Post sound" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} onPreview={() => notif.post_sound && playSound(notif.post_sound)} onUpload={() => handleUploadSound('post_sound')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('post_sound', uri)} />
+                  <SoundInput label="Ringtone" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} onPreview={() => notif.ringtone_url && playSound(notif.ringtone_url)} onUpload={() => handleUploadSound('ringtone_url')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('ringtone_url', uri)} />
+                </div>
+
+                {/* Sound Library */}
+                <div className="border-t border-border pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-primary">Sound Library</h3>
+                    <button onClick={handleAddToLibrary}
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium bg-accent text-accent-content hover:bg-accent-hover transition-all">
+                      + Add Sound
+                    </button>
+                  </div>
+                  {Object.keys(notif.sound_library).length === 0 ? (
+                    <p className="text-xs text-muted">No custom sounds yet. Upload a sound to get started.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(notif.sound_library).map(([name, uri]) => (
+                        <div key={name} className="flex items-center gap-2 bg-surface-muted rounded-xl px-3 py-2">
+                          <span className="text-sm text-secondary flex-1 truncate">{name}</span>
+                          <button onClick={() => playSound(uri)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-surface-hover text-secondary hover:text-primary transition-all">
+                            Preview
+                          </button>
+                          <button onClick={() => handleDeleteFromLibrary(name)}
+                            className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-red-500/10 transition-all">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -385,18 +456,60 @@ function HexInput({ label, value, onChange }: { label: string; value: string; on
   )
 }
 
-function SoundInput({ label, value, onChange, onPreview, onUpload }: { label: string; value: string; onChange: (v: string) => void; onPreview: () => void; onUpload: () => void }) {
+function SoundInput({ label, value, onChange, onPreview, onUpload, library, onPickFromLibrary }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onPreview: () => void
+  onUpload: () => void
+  library: [string, string][]
+  onPickFromLibrary: (uri: string) => void
+}) {
+  const [showPicker, setShowPicker] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowPicker(false)
+      }
+    }
+    if (showPicker) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showPicker])
+
   return (
     <div>
       <label className="text-xs text-muted font-medium mb-1 block">{label}</label>
       <div className="flex gap-2">
-        <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
-          placeholder="https://example.com/sound.mp3"
-          className="input-field !py-2 !text-xs flex-1" />
+        <div className="relative flex-1">
+          <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
+            placeholder="https://example.com/sound.mp3"
+            className="input-field !py-2 !text-xs w-full" />
+        </div>
         <button onClick={onPreview} disabled={!value}
           className="px-3 py-2 rounded-xl text-xs font-medium bg-surface-muted text-secondary hover:bg-surface-hover disabled:opacity-40 transition-all">
           Preview
         </button>
+        <div className="relative" ref={pickerRef}>
+          <button onClick={() => setShowPicker(!showPicker)} disabled={library.length === 0}
+            className="px-3 py-2 rounded-xl text-xs font-medium bg-surface-muted text-secondary hover:bg-surface-hover disabled:opacity-40 transition-all">
+            Library
+          </button>
+          {showPicker && (
+            <div className="absolute right-0 top-full mt-1 w-56 bg-surface border border-border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
+              {library.map(([name, uri]) => (
+                <button key={name} onClick={() => { onChange(uri); setShowPicker(false) }}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-hover transition-all flex items-center gap-2 ${value === uri ? 'text-accent' : 'text-secondary'}`}>
+                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                  </svg>
+                  <span className="truncate">{name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button onClick={onUpload}
           className="px-3 py-2 rounded-xl text-xs font-medium bg-accent text-accent-content hover:bg-accent-hover transition-all">
           Upload
