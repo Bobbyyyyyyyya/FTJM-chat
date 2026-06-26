@@ -7,12 +7,13 @@ import { usePresence } from './hooks/usePresence'
 import LoginPage from './pages/Login'
 import ChatPage from './pages/Chat'
 import SessionLockScreen from './components/SessionLockScreen'
+import BannedScreen from './components/BannedScreen'
 import VoiceCallUI from './components/VoiceCallUI'
 import UpdateNotifier from './components/UpdateNotifier'
 import './App.css'
 
 function App() {
-  const { user, pendingUser, loading, checkAuth } = useAuthStore()
+  const { user, pendingUser, loading, bannedInfo, checkAuth } = useAuthStore()
   const [isInitialized, setIsInitialized] = useState(false)
   const activeIdentity = pendingUser || user
   const onlineUsers = usePresence(user?.id)
@@ -133,6 +134,10 @@ function App() {
     isRemoteScreenSharing,
     startScreenShare,
     stopScreenShare,
+  }
+
+  if (bannedInfo) {
+    return <BannedScreen />
   }
 
   return (
