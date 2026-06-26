@@ -27,13 +27,15 @@ export function createPeerConnection(
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void,
 ): RTCPeerConnection {
   const pc = new RTCPeerConnection(RTC_CONFIG)
+  const remoteStream = new MediaStream()
 
   pc.onicecandidate = (e) => {
     if (e.candidate) onIceCandidate(e.candidate.toJSON())
   }
 
   pc.ontrack = (e) => {
-    onRemoteStream(e.streams[0])
+    remoteStream.addTrack(e.track)
+    onRemoteStream(remoteStream)
   }
 
   if (onConnectionStateChange) {

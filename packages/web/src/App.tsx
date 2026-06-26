@@ -17,11 +17,12 @@ function App() {
   const activeIdentity = pendingUser || user
   const onlineUsers = usePresence(user?.id)
 
+  const ringtoneUrl = (activeIdentity?.notification_settings as Record<string, unknown> | undefined)?.ringtone_url as string | undefined
   const voiceCall = useVoiceCall(
     activeIdentity?.id,
     activeIdentity?.display_name || 'Gebruiker',
     activeIdentity?.photo_url || undefined,
-    undefined,
+    ringtoneUrl,
   )
   const {
     callState,

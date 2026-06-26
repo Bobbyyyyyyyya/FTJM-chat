@@ -129,7 +129,7 @@ export default function VoiceCallUI({
     <>
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       {layout === 'large' && !pipActive && isConnected && remoteStream && (
-        activeCall.isVideo && remoteStream.getVideoTracks().length > 0 && (
+        (activeCall.isVideo || isRemoteScreenSharing) && remoteStream.getVideoTracks().length > 0 && (
           <video
             ref={remoteVideoRef}
             autoPlay
@@ -208,7 +208,7 @@ export default function VoiceCallUI({
           )}
 
           {/* Local PiP */}
-          {isConnected && activeCall.isVideo && localStream && (
+          {isConnected && (activeCall.isVideo || isScreenSharing) && localStream && (
             <div className="absolute top-4 right-4 z-30 w-36 h-48 rounded-2xl overflow-hidden border-2 border-white/20 shadow-lg">
               <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
             </div>
@@ -289,7 +289,7 @@ export default function VoiceCallUI({
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center shrink-0">
-              {!pipActive && isConnected && activeCall.isVideo && remoteStream && remoteStream.getVideoTracks().length > 0 ? (
+              {!pipActive && isConnected && (activeCall.isVideo || isRemoteScreenSharing) && remoteStream && remoteStream.getVideoTracks().length > 0 ? (
                 <video ref={compactVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
               ) : activeCall.callerAvatar ? (
                 <img src={activeCall.callerAvatar} alt="" className="w-full h-full object-cover" />

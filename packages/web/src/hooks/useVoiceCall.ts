@@ -48,7 +48,7 @@ export function useVoiceCall(
   const callStateRef = useRef<CallState>('idle')
   const screenStreamRef = useRef<MediaStream | null>(null)
   const originalCameraTrackRef = useRef<MediaStreamTrack | null>(null)
-  const incomingSoundRef = useRef<HTMLAudioElement | null>(null)
+  const incomingSoundRef = useRef<{ stop: () => void } | null>(null)
   const dialingSoundRef = useRef<{ stop: () => void } | null>(null)
   const endCallSoundRef = useRef<{ stop: () => void } | null>(null)
 
@@ -529,11 +529,41 @@ export function useVoiceCall(
         const call = activeCallRef.current
         console.log('[call] offer ontvangen, roomId:', payload.roomId, 'activeCall?.roomId:', call?.roomId, 'state:', callStateRef.current)
         if (!call || payload.roomId !== call.roomId) return
-        if (callStateRef.current === 'ringing' && payload.sdp) {
+        if (!payload.sdp) return
+        if (callStateRef.current === 'ringing') {
           toast.info('RTC sdp-aanbod (offer) ontvangen van beller...', {
             duration: 4000,
           })
           pendingOfferRef.current = payload.sdp
+        }
+        // Handle renegotiation during connected call (e.g. screen share)
+        if (callStateRef.current === 'connected' && pcRef.current) {
+          try {
+            await pcRef.current.setRemoteDescription(
+              new RTCSessionDescription({ type: 'offer', sdp: payload.sdp })
+            )
+            const answer = await pcRef.current.createAnswer()
+            await pcRef.current.setLocalDescription(answer)
+            const targetId = activeCallRef.current!.callerId === userId
+              ? activeCallRef.current!.receiverId
+              : activeCallRef.current!.callerId
+            const outbound = outboundRef.current
+            if (targetId && outbound) {
+              await outbound.send({
+                type: 'broadcast',
+                event: 'answer',
+                payload: {
+                  sdp: answer.sdp,
+                  msgId: `answer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                  senderId: userId,
+                  targetId,
+                  answer: { sdp: answer.sdp, type: 'answer' },
+                },
+              })
+            }
+          } catch (err) {
+            console.error('[call] renegotiation error:', err)
+          }
         }
       })
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
@@ -601,7 +631,7 @@ export function useVoiceCall(
 
     // Stop incoming ringtone
     if (incomingSoundRef.current) {
-      incomingSoundRef.current.pause()
+      incomingSoundRef.current.stop()
       incomingSoundRef.current = null
     }
 
@@ -618,11 +648,11 @@ export function useVoiceCall(
         audio.loop = true
         audio.volume = 0.5
         audio.play().catch(() => {
-          playSyntheticSound('ringing')
+          incomingSoundRef.current = playSyntheticSound('ringing')
         })
-        incomingSoundRef.current = audio
+        incomingSoundRef.current = { stop: () => audio.pause() }
       } else {
-        playSyntheticSound('ringing')
+        incomingSoundRef.current = playSyntheticSound('ringing')
       }
     } else if (callState === 'calling') {
       // Outgoing call — play dialing sound (repeating)
@@ -638,7 +668,7 @@ export function useVoiceCall(
     }
 
     return () => {
-      incomingSoundRef.current?.pause()
+      incomingSoundRef.current?.stop()
       incomingSoundRef.current = null
       dialingSoundRef.current?.stop()
       dialingSoundRef.current = null
