@@ -167,7 +167,7 @@ export interface Settings {
 // HELPER TYPES
 // ============================================================================
 
-export type ChatTab = 'dm' | 'general' | 'forum'
+export type ChatTab = 'dm' | 'general' | 'forum' | 'settings' | 'games'
 
 export interface ChatMessage {
   id: string

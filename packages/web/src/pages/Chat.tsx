@@ -24,8 +24,10 @@ import {
 } from '@/lib/db'
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
-import SettingsModal, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsModal'
+import SettingsContent, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsContent'
+import GamesArcade from '@/components/GamesArcade'
 import { isCallSignal } from '@/lib/db'
+import type { ChatTab } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 
 function useTheme() {
@@ -54,7 +56,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [typingUsers, setTypingUsers] = useState<string[]>([])
 
   const [generalChat, setGeneralChat] = useState<Post[]>([])
-  const [activeTab, setActiveTab] = useState<'dm' | 'general'>('dm')
+  const [activeTab, setActiveTab] = useState<ChatTab>('dm')
 
   const [messageInput, setMessageInput] = useState('')
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
@@ -72,7 +74,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [editingId, setEditingId] = useState<{type: 'dm' | 'general', id: string} | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [replyingTo, setReplyingTo] = useState<Post | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
   const [sending, setSending] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
 
@@ -545,8 +546,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           <div className="flex-1 overflow-y-auto px-3 pb-3">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="h-10 w-10 rounded-2xl bg-surface-muted flex items-center justify-center mb-3">
-                  <svg className="w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center mb-3 border border-border/50">
+                  <svg className="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
@@ -560,6 +561,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   const isSelected = selectedConvId === conv.id
                   const isGroup = conv.is_group
                   return (
+                    <div className="relative">
+                      {isSelected && (
+                        <motion.div
+                          layoutId="sidebarIndicator"
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-gradient-accent"
+                          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                        />
+                      )}
                     <button
                       key={conv.id}
                       onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
@@ -600,6 +609,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                         </p>
                       </div>
                     </button>
+                    </div>
                   )
                 })}
               </div>
@@ -638,7 +648,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 )}
               </button>
               <button
-                onClick={() => setShowSettings(true)}
+                onClick={() => setActiveTab('settings')}
                 className="h-7 w-7 rounded-lg hover:bg-surface-hover flex items-center justify-center transition-all"
                 aria-label="Settings"
               >
@@ -691,9 +701,26 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             >
               General
             </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'settings' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
+              }`}
+            >
+              Settings
+            </button>
+            <button
+              onClick={() => { setActiveTab('games'); setSelectedConvId(null) }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'games' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
+              }`}
+            >
+              Games
+            </button>
           </div>
 
-          {/* Divider */}
+          {activeTab !== 'settings' && activeTab !== 'games' && (
+            <>
           <div className="w-px h-6 bg-border shrink-0" />
 
           <div className="flex items-center justify-between gap-3 flex-1 min-w-0">
@@ -778,23 +805,34 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             </>
           )}
           </div>
+            </>
+          )}
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 min-h-0">
-          {activeTab === 'dm' ? (
+          {activeTab === 'games' ? (
+            <GamesArcade />
+          ) : activeTab === 'settings' ? (
+            <SettingsContent userId={user?.id || ''} />
+          ) : activeTab === 'dm' ? (
             selectedConvId ? (
               <>
                 {messages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                    <div className="h-12 w-12 rounded-2xl bg-surface-muted flex items-center justify-center mb-4">
-                      <svg className="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex flex-col items-center justify-center h-full text-center py-16"
+                  >
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center mb-4 border border-border/50">
+                      <svg className="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <p className="text-muted font-medium">No messages yet</p>
+                    <p className="text-muted text-lg font-medium">No messages yet</p>
                     <p className="text-muted text-sm mt-1">Send the first message!</p>
-                  </div>
+                  </motion.div>
                 )}
                 {[...messages].filter((m) => !isCallSignal(m.text)).reverse().map((msg, index) => {
                   const isMine = msg.sender_id === user?.id
@@ -907,28 +945,38 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 )}
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="h-16 w-16 rounded-3xl bg-surface-muted flex items-center justify-center mb-5">
-                  <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-col items-center justify-center h-full"
+              >
+                <div className="h-16 w-16 rounded-3xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center mb-5 border border-border/50">
+                  <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
                 <p className="text-muted text-lg font-medium">Select a conversation</p>
                 <p className="text-muted text-sm mt-1">Choose a chat from the sidebar</p>
-              </div>
+              </motion.div>
             )
           ) : (
             <div className="space-y-4">
               {generalChat.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                  <div className="h-12 w-12 rounded-2xl bg-surface-muted flex items-center justify-center mb-4">
-                    <svg className="w-6 h-6 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex flex-col items-center justify-center h-full text-center py-20"
+                >
+                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center mb-4 border border-border/50">
+                    <svg className="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
                     </svg>
                   </div>
                   <p className="text-muted text-lg font-medium">No messages yet</p>
                   <p className="text-muted text-sm mt-1">Be the first to post in general chat</p>
-                </div>
+                </motion.div>
               ) : (
                 generalChat.map((post, index) => {
                   const isMine = post.author_id === user?.id
@@ -1038,6 +1086,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         </div>
 
         {/* Input */}
+        {activeTab !== 'settings' && activeTab !== 'games' && (
         <div className="bg-surface-glass backdrop-blur-sm border-t border-border px-6 py-4">
           <AnimatePresence>
             {replyingTo && (
@@ -1089,15 +1138,22 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             </button>
           </div>
         </div>
+        )}
       </main>
-
-      {/* Settings modal */}
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
 
       {/* Profile modal */}
       {profilePreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/20 dark:bg-black/40 backdrop-blur-sm" onClick={closeProfile}>
-          <div className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/20 dark:bg-black/40 backdrop-blur-sm" onClick={closeProfile}>
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
             {/* Banner */}
             {profilePreview.banner_url ? (
               <div className="h-36 bg-cover bg-center" style={{ backgroundImage: `url(${profilePreview.banner_url})` }} />
@@ -1144,8 +1200,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 )}
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
     </div>
   )
