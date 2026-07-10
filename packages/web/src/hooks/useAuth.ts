@@ -71,7 +71,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   checkAuth: async () => {
     try {
       const { data, error } = await supabase.auth.getSession()
-      if (error) throw error
+      if (error) {
+        console.warn('[Auth] getSession error, clearing stale session:', error.message)
+        await supabase.auth.signOut()
+        set({ user: null, loading: false })
+        return
+      }
       if (data.session?.user?.id) {
         try {
           await supabase.realtime.setAuth(data.session.access_token)

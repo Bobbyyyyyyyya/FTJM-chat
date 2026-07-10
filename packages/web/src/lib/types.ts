@@ -120,10 +120,10 @@ export interface TypingStatus {
 export interface Notification {
   id: string
   user_id: string // Who receives the notification
-  type: 'mention' | 'reply' | 'system' | 'dm'
+  type: 'mention' | 'reply' | 'system' | 'dm' | 'follow' | 'upload_media'
   content: string
-  resource_type?: 'post' | 'comment' | 'thread' | 'message'
-  resource_id?: string // Links to post/comment/thread/message
+  resource_type?: 'post' | 'comment' | 'thread' | 'message' | 'profile_media'
+  resource_id?: string // Links to post/comment/thread/message/media
   is_read: boolean
   created_at: string
 }
@@ -164,10 +164,40 @@ export interface Settings {
 }
 
 // ============================================================================
+// SOCIAL (FOLLOWS + PROFILE MEDIA)
+// ============================================================================
+
+export interface Follow {
+  id: string
+  follower_id: string
+  following_id: string
+  created_at: string
+}
+
+export interface ProfileMediaComment {
+  id: string
+  user_id: string
+  name: string
+  photo?: string
+  text: string
+  created_at: string
+}
+
+export interface ProfileMedia {
+  id: string
+  user_id: string
+  media_url: string
+  media_type: 'image' | 'gif'
+  likes: string[]
+  comments: ProfileMediaComment[]
+  created_at: string
+}
+
+// ============================================================================
 // HELPER TYPES
 // ============================================================================
 
-export type ChatTab = 'dm' | 'general' | 'forum' | 'settings' | 'games'
+export type ChatTab = 'dm' | 'general' | 'feed' | 'forum' | 'settings' | 'games'
 
 export interface ChatMessage {
   id: string
@@ -272,6 +302,8 @@ export const NOTIFICATION_TYPES = {
   REPLY: 'reply',
   SYSTEM: 'system',
   DM: 'dm',
+  FOLLOW: 'follow',
+  UPLOAD_MEDIA: 'upload_media',
 } as const
 
 export const REPORT_STATUS = {

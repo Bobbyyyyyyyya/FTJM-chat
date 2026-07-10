@@ -51,7 +51,7 @@ export interface Message {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'mention' | 'reply' | 'system' | 'dm';
+  type: 'mention' | 'reply' | 'system' | 'dm' | 'follow' | 'upload_media';
   content: string;
   resource_type: string;
   resource_id: string;
@@ -63,4 +63,19 @@ export interface TypingStatus {
   conversation_id: string;
   user_id: string;
   is_typing: boolean;
+}
+
+export interface Follow {
+  id: string;
+  follower_id: string;
+  following_id: string;
+  created_at: string;
+}
+
+export interface ProfileMedia {
+  id: string;
+  user_id: string;
+  media_url: string;
+  media_type: 'image' | 'gif';
+  created_at: string;
 }

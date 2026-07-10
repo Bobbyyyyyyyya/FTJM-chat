@@ -3,6 +3,7 @@ export * from './db-conversations'
 export * from './db-posts'
 export * from './db-profiles'
 export * from './db-forum'
+export * from './db-social'
 
 import { supabase } from './supabase'
 

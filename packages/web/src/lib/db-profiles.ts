@@ -29,9 +29,9 @@ export interface Profile {
 export interface Notification {
   id: string
   user_id: string
-  type: 'mention' | 'reply' | 'system' | 'dm'
+  type: 'mention' | 'reply' | 'system' | 'dm' | 'follow' | 'upload_media'
   content: string
-  resource_type?: 'post' | 'comment' | 'thread' | 'message'
+  resource_type?: 'post' | 'comment' | 'thread' | 'message' | 'profile_media'
   resource_id?: string
   is_read: boolean
   created_at: string
@@ -58,20 +58,39 @@ export async function getCurrentProfile() {
   return data as Profile
 }
 
-// Get any public profile
-export async function getProfile(userId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle()
+const profileCache = new Map<string, Profile>()
 
-  if (error) {
-    console.error('❌ Error fetching profile:', error)
-    return null
+export function clearProfileCache() {
+  profileCache.clear()
+}
+
+// Batch-fetch multiple profiles in one query, populates cache
+export async function getProfiles(userIds: string[]): Promise<Profile[]> {
+  const unique = [...new Set(userIds)]
+  const missing = unique.filter((id) => !profileCache.has(id))
+
+  if (missing.length > 0) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', missing)
+
+    if (error) {
+      console.error('❌ Error fetching profiles:', error)
+    } else if (data) {
+      for (const p of data as Profile[]) {
+        profileCache.set(p.id, p)
+      }
+    }
   }
 
-  return data as Profile | null
+  return unique.map((id) => profileCache.get(id)).filter(Boolean) as Profile[]
+}
+
+// Get any public profile (with in-memory cache to avoid N+1)
+export async function getProfile(userId: string) {
+  const profiles = await getProfiles([userId])
+  return profiles[0] || null
 }
 
 // Update own profile (display_name, bio, photo, settings, theme)
@@ -137,9 +156,9 @@ export async function markNotificationAsRead(notificationId: string) {
 // Create notification (usually called from backend/triggers)
 export async function createNotification(
   userId: string,
-  type: 'mention' | 'reply' | 'system' | 'dm',
+  type: 'mention' | 'reply' | 'system' | 'dm' | 'follow' | 'upload_media',
   content: string,
-  resourceType?: 'post' | 'comment' | 'thread' | 'message',
+  resourceType?: 'post' | 'comment' | 'thread' | 'message' | 'profile_media',
   resourceId?: string
 ) {
   const { data, error } = await supabase

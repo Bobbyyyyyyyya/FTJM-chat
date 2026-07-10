@@ -106,12 +106,12 @@ export default function LoginPage() {
                 <svg viewBox="0 0 512 512" className="h-10 w-10">
                   <defs>
                     <linearGradient id="loginAccent" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stop-color="#2dd4bf"/>
-                      <stop offset="100%" stop-color="#38bdf8"/>
+                      <stop offset="0%" stopColor="#2dd4bf"/>
+                      <stop offset="100%" stopColor="#38bdf8"/>
                     </linearGradient>
                     <linearGradient id="loginFg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#ffffff"/>
-                      <stop offset="100%" stop-color="#e2e8f0"/>
+                      <stop offset="0%" stopColor="#ffffff"/>
+                      <stop offset="100%" stopColor="#e2e8f0"/>
                     </linearGradient>
                   </defs>
                   <rect x="0" y="0" width="512" height="512" rx="88" fill="#0f172a"/>
