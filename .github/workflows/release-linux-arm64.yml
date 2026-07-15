@@ -1,0 +1,68 @@
+name: Release Linux arm64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Setup env files
+        shell: bash
+        run: |
+          cat > .env.local << EOF
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
+          EOF
+          cp .env.local packages/web/.env.local
+
+      - name: Install Linux build tools
+        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
+
+      - name: Setup QEMU for arm64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package Linux arm64
+        shell: bash
+        run: cd packages/main && npx electron-builder --linux --arm64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List built artifacts
+        shell: bash
+        run: ls -la packages/main/release/
+
+      - name: Upload to v1.0.0 release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v1.0.0
+          files: |
+            packages/main/release/*.AppImage
+            packages/main/release/*.deb
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
