@@ -47,7 +47,10 @@ jobs:
 
       - name: Package Linux arm64
         shell: bash
-        run: cd packages/main && npx electron-builder --linux --arm64 --publish never
+        run: |
+          cd packages/main
+          sed -i 's/arch: \[x64, arm64\]/arch: [arm64]/g' electron-builder.yml
+          npx electron-builder --linux --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
