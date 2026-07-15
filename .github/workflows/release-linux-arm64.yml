@@ -1,6 +1,7 @@
 name: Release Linux arm64
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 permissions:
   contents: write
