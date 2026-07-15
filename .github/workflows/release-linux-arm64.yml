@@ -49,8 +49,29 @@ jobs:
         shell: bash
         run: |
           cd packages/main
-          sed -i 's/arch: \[x64, arm64\]/arch: [arm64]/g' electron-builder.yml
-          npx electron-builder --linux --arm64 --publish never
+          cat > electron-builder-arm64.yml << 'BUILDCONFIG'
+          appId: com.ftjm.chat
+          productName: FTJM Chat
+          directories:
+            buildResources: assets
+            output: release
+          extraResources:
+            - from: web-dist
+              to: web-dist
+              filter:
+                - "**/*"
+          afterPack: scripts/afterPack.cjs
+          icon: assets/icon.png
+          linux:
+            target:
+              - target: AppImage
+                arch: [arm64]
+            category: Utility
+            maintainer: "FTJM Team <team@ftjm.chat>"
+            artifactName: "FTJM-Chat_${version}_${arch}.${ext}"
+            icon: assets/icon.png
+          BUILDCONFIG
+          npx electron-builder --linux --config electron-builder-arm64.yml --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
