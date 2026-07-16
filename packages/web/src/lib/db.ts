@@ -4,6 +4,7 @@ export * from './db-posts'
 export * from './db-profiles'
 export * from './db-forum'
 export * from './db-social'
+export * from './db-reports'
 
 import { supabase } from './supabase'
 

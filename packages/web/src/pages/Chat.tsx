@@ -46,6 +46,7 @@ import { isCallSignal } from '@/lib/db'
 import { compressImage } from '@/lib/storage'
 import type { ChatTab, ProfileMedia as ProfileMediaType } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
+import ReportModal from '@/components/ReportModal'
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -105,6 +106,11 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({})
+  const [reportModal, setReportModal] = useState<{
+    targetName: string
+    reportedUserId?: string
+    reportedPostId?: string
+  } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Voice call
@@ -1214,7 +1220,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
                             <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
                               <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-muted'}`}>{time}</p>
-                              {isMine && (
+                              {isMine ? (
                                 <div className="flex gap-1.5">
                                   <button onClick={() => handleEditMessage(msg)}
                                     className="p-1 text-muted hover:text-primary transition-colors"
@@ -1231,6 +1237,17 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                     </svg>
                                   </button>
                                 </div>
+                              ) : (
+                                <button onClick={() => setReportModal({
+                                    targetName: participant.display_name,
+                                    reportedUserId: msg.sender_id,
+                                  })}
+                                  className="p-1 text-muted hover:text-red-400 transition-colors"
+                                  title="Report">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                                  </svg>
+                                </button>
                               )}
                             </div>
                           </>
@@ -1333,6 +1350,19 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                 </svg>
                               </button>
+                              {!isMine && (
+                                <button onClick={() => setReportModal({
+                                    targetName: authorName,
+                                    reportedPostId: post.id,
+                                    reportedUserId: post.author_id,
+                                  })}
+                                  className="p-1 text-muted hover:text-red-400 transition-colors"
+                                  title="Report">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                                  </svg>
+                                </button>
+                              )}
                               {isMine && (
                                 <>
                                 <button onClick={() => handleEditPost(post)}
@@ -1512,16 +1542,30 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   </div>
                 </div>
                 {!profilePreview.isCurrentUser && user?.id && (
-                  <button
-                    onClick={handleFollowToggle}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 ${
-                      isFollowingUser
-                        ? 'bg-surface-muted text-secondary hover:bg-red-500/10 hover:text-red-400'
-                        : 'bg-accent text-accent-content hover:bg-accent-hover'
-                    }`}
-                  >
-                    {isFollowingUser ? 'Volgend' : 'Volgen'}
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setReportModal({
+                        targetName: profilePreview.display_name,
+                        reportedUserId: profilePreview.id,
+                      })}
+                      className="h-8 w-8 rounded-xl bg-surface-muted hover:bg-red-500/10 flex items-center justify-center transition-all group"
+                      title="Report"
+                    >
+                      <svg className="w-4 h-4 text-secondary group-hover:text-red-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={handleFollowToggle}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        isFollowingUser
+                          ? 'bg-surface-muted text-secondary hover:bg-red-500/10 hover:text-red-400'
+                          : 'bg-accent text-accent-content hover:bg-accent-hover'
+                      }`}
+                    >
+                      {isFollowingUser ? 'Volgend' : 'Volgen'}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1645,6 +1689,19 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           </motion.div>
         </motion.div>
       )}
+
+      {/* Report Modal */}
+      <AnimatePresence>
+        {reportModal && user?.id && (
+          <ReportModal
+            reporterId={user.id}
+            targetName={reportModal.targetName}
+            reportedUserId={reportModal.reportedUserId}
+            reportedPostId={reportModal.reportedPostId}
+            onClose={() => setReportModal(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
