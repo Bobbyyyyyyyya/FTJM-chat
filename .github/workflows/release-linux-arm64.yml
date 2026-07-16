@@ -27,11 +27,11 @@ jobs:
       - name: Setup env files
         shell: bash
         run: |
-          cat > .env.local << EOF
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
-          EOF
+          printf '%s\n' \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            "VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}" \
+            > .env.local
           cp .env.local packages/web/.env.local
 
       - name: Install Linux build tools
@@ -49,32 +49,33 @@ jobs:
         shell: bash
         run: |
           cd packages/main
-          cat > electron-builder-arm64.yml << 'BUILDCONFIG'
-appId: com.ftjm.chat
-productName: FTJM Chat
-directories:
-  buildResources: assets
-  output: release
-extraResources:
-  - from: web-dist
-    to: web-dist
-    filter:
-      - "**/*"
-afterPack: scripts/afterPack.cjs
-icon: assets/icon.png
-linux:
-  target:
-    - target: AppImage
-      arch: [arm64]
-  category: Utility
-  maintainer: "FTJM Team <team@ftjm.chat>"
-  artifactName: "FTJM-Chat_${version}_${arch}.${ext}"
-  icon: assets/icon.png
-publish:
-  provider: github
-  owner: Bobbyyyyyyyya
-  repo: FTJM-chat
-BUILDCONFIG
+          printf '%s\n' \
+            'appId: com.ftjm.chat' \
+            'productName: FTJM Chat' \
+            'directories:' \
+            '  buildResources: assets' \
+            '  output: release' \
+            'extraResources:' \
+            '  - from: web-dist' \
+            '    to: web-dist' \
+            '    filter:' \
+            '      - "**/*"' \
+            'afterPack: scripts/afterPack.cjs' \
+            'icon: assets/icon.png' \
+            'linux:' \
+            '  target:' \
+            '    - target: AppImage' \
+            '      arch:' \
+            '        - arm64' \
+            '  category: Utility' \
+            '  maintainer: "FTJM Team <team@ftjm.chat>"' \
+            '  artifactName: "FTJM-Chat_${version}_${arch}.${ext}"' \
+            '  icon: assets/icon.png' \
+            'publish:' \
+            '  provider: github' \
+            '  owner: Bobbyyyyyyyya' \
+            '  repo: FTJM-chat' \
+            > electron-builder-arm64.yml
           npx electron-builder --linux --config electron-builder-arm64.yml --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -83,10 +84,10 @@ BUILDCONFIG
         shell: bash
         run: ls -la packages/main/release/
 
-      - name: Upload to v1.0.0 release
+      - name: Upload to v1.1.0 release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v1.0.0
+          tag_name: v1.1.0
           files: |
             packages/main/release/*.AppImage
             packages/main/release/*.deb
