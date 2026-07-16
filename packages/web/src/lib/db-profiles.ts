@@ -110,6 +110,10 @@ export async function updateProfile(userId: string, updates: Partial<Profile>) {
     throw error
   }
 
+  if (data) {
+    profileCache.set(userId, data as Profile)
+  }
+
   return data as Profile
 }
 
