@@ -16,7 +16,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync } from 'fs'
-import { isMacBanned, BANNED_MACS } from './banned-macs'
+import { isMacBanned, BANNED_MACS } from './banned-macs.js'
 
 const { autoUpdater } = pkg
 
