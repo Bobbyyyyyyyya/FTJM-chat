@@ -1,6 +1,7 @@
 // Database service for managing posts (General Chat)
 import { supabase } from './supabase'
 import type { RealtimePayload } from './types'
+import { postLimiter, enforceRateLimit } from './rateLimiter'
 
 export interface Post {
   id: string
@@ -49,6 +50,7 @@ export async function createPost(
   content: string,
   parentId?: string | null
 ) {
+  enforceRateLimit(postLimiter, `post:${authorId}`, 'Berichten plaatsen')
   const { data, error } = await supabase
     .from('posts')
     .insert({

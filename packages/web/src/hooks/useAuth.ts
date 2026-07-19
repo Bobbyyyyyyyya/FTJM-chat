@@ -1,12 +1,70 @@
 import { create } from 'zustand'
 import { User } from '@ftjm/shared'
 import { supabase } from '@/lib/supabase'
+import { authLimiter, enforceRateLimit } from '@/lib/rateLimiter'
 
 export interface BanInfo {
   isBlocked: boolean
   bannedUntil: string | null
   banReason: string | null
   warnings: { message: string; timestamp: string }[]
+}
+
+const HW_BAN_LS = '__sys_hw_banned'
+const HW_BAN_SS = '__sys_hw_banned'
+const HW_BAN_COOKIE = '__sys_hw_banned'
+const HW_BAN_TRACE_COOKIE = '__hw_ban_trace'
+const HW_UUID_TOKEN_LS = 'hardware uuid-token'
+const BAN_EXPIRY_DAYS = 3650
+
+function setCookie(name: string, value: string, days: number) {
+  const expires = new Date(Date.now() + days * 86400000).toUTCString()
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict`
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+function isHardwareBanned(): boolean {
+  if (localStorage.getItem(HW_BAN_LS) === 'blocked') return true
+  if (sessionStorage.getItem(HW_BAN_SS) === 'blocked') return true
+  if (getCookie(HW_BAN_COOKIE) === 'blocked') return true
+  if (getCookie(HW_BAN_TRACE_COOKIE) === 'blocked') return true
+  if (localStorage.getItem(HW_UUID_TOKEN_LS) === 'blocked') return true
+  return false
+}
+
+function persistHardwareBan() {
+  localStorage.setItem(HW_BAN_LS, 'blocked')
+  localStorage.setItem(HW_UUID_TOKEN_LS, 'blocked')
+  sessionStorage.setItem(HW_BAN_SS, 'blocked')
+  setCookie(HW_BAN_COOKIE, 'blocked', BAN_EXPIRY_DAYS)
+  setCookie(HW_BAN_TRACE_COOKIE, 'blocked', BAN_EXPIRY_DAYS)
+}
+
+const MAC_BAN_REASON = 'Dit apparaat is geblokkeerd via MAC-adres filter.'
+
+function getMacBanInfo(): BanInfo {
+  return {
+    isBlocked: true,
+    bannedUntil: null,
+    banReason: MAC_BAN_REASON,
+    warnings: [],
+  }
+}
+
+async function checkMacBan(): Promise<BanInfo | null> {
+  if (!window.electron?.checkMacBanned) return null
+  try {
+    const result = await window.electron.checkMacBanned()
+    if (result.banned) {
+      persistHardwareBan()
+      return getMacBanInfo()
+    }
+  } catch {}
+  return null
 }
 
 function parseAdminNotes(profile: Record<string, unknown> | null): BanInfo | null {
@@ -70,6 +128,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuth: async () => {
     try {
+      if (isHardwareBanned()) {
+        set({ user: null, loading: false, bannedInfo: getMacBanInfo() })
+        return
+      }
+      const macBan = await checkMacBan()
+      if (macBan) {
+        set({ user: null, loading: false, bannedInfo: macBan })
+        return
+      }
       const { data, error } = await supabase.auth.getSession()
       if (error) {
         console.warn('[Auth] getSession error, clearing stale session:', error.message)
@@ -110,6 +177,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!pendingUser?.email) throw new Error('No pending user')
     set({ loading: true })
     try {
+      enforceRateLimit(authLimiter, 'unlock', 'App ontgrendelen')
+      if (isHardwareBanned()) {
+        set({ user: null, pendingUser: null, loading: false, bannedInfo: getMacBanInfo() })
+        return
+      }
+      const macBan = await checkMacBan()
+      if (macBan) {
+        set({ user: null, pendingUser: null, loading: false, bannedInfo: macBan })
+        return
+      }
       const { data, error } = await supabase.auth.signInWithPassword({
         email: pendingUser.email,
         password,
@@ -145,6 +222,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email: string, password: string) => {
     try {
+      enforceRateLimit(authLimiter, 'login', 'Inloggen')
+      if (isHardwareBanned()) {
+        set({ bannedInfo: getMacBanInfo() })
+        return
+      }
+      const macBan = await checkMacBan()
+      if (macBan) {
+        set({ bannedInfo: macBan })
+        return
+      }
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
       try {
@@ -173,6 +260,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signup: async (email: string, password: string, displayName: string) => {
     try {
+      enforceRateLimit(authLimiter, 'signup', 'Registreren')
+      if (isHardwareBanned()) {
+        set({ bannedInfo: getMacBanInfo() })
+        return
+      }
+      const macBan = await checkMacBan()
+      if (macBan) {
+        set({ bannedInfo: macBan })
+        return
+      }
       const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
       try {

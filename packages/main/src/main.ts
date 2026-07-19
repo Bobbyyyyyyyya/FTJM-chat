@@ -12,9 +12,11 @@ import {
 } from 'electron'
 import pkg from 'electron-updater'
 import https from 'https'
+import * as os from 'os'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync } from 'fs'
+import { isMacBanned, BANNED_MACS } from './banned-macs'
 
 const { autoUpdater } = pkg
 
@@ -313,6 +315,21 @@ function setupIpcHandlers() {
     if (!isMac) {
       autoUpdater.quitAndInstall()
     }
+  })
+
+  ipcMain.handle('check-mac-banned', () => {
+    const interfaces = os.networkInterfaces()
+    const allMacs: string[] = []
+    for (const name of Object.keys(interfaces)) {
+      const addrs = interfaces[name]
+      if (!addrs) continue
+      for (const addr of addrs) {
+        if (!addr.mac || addr.mac === '00:00:00:00:00:00') continue
+        allMacs.push(addr.mac.toUpperCase())
+      }
+    }
+    const banned = allMacs.some((mac) => isMacBanned(mac))
+    return { banned, macs: allMacs, bannedList: BANNED_MACS }
   })
 
   ipcMain.handle('encrypt-store', (_event, key: string, value: string) => {

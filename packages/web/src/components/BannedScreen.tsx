@@ -53,6 +53,9 @@ export default function BannedScreen() {
                 Je toegang is beperkt tot <span className="text-red-400 font-medium">{untilStr}</span>
               </p>
             )}
+            <p className="text-xs text-muted mt-2">
+              Dit apparaat is permanent geblokkeerd.
+            </p>
           </div>
 
           {bannedInfo.banReason && (

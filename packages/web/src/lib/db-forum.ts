@@ -1,5 +1,6 @@
 // Database service for managing forum (threads and comments)
 import { supabase } from './supabase'
+import { forumThreadLimiter, forumCommentLimiter, enforceRateLimit } from './rateLimiter'
 
 export interface ForumThread {
   id: string
@@ -86,6 +87,7 @@ export async function createForumThread(
   content: string,
   category?: string
 ) {
+  enforceRateLimit(forumThreadLimiter, `thread:${authorId}`, 'Forum threads aanmaken')
   const { data, error } = await supabase
     .from('forum_threads')
     .insert({
@@ -154,6 +156,7 @@ export async function postForumComment(
   authorId: string,
   content: string
 ) {
+  enforceRateLimit(forumCommentLimiter, `fcomment:${authorId}`, 'Forum comments plaatsen')
   const { data, error } = await supabase
     .from('forum_comments')
     .insert({

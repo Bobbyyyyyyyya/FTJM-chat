@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { Report } from './types'
+import { reportLimiter, enforceRateLimit } from './rateLimiter'
 
 export async function createReport(
   reporterId: string,
@@ -10,6 +11,7 @@ export async function createReport(
     description?: string
   } = {}
 ) {
+  enforceRateLimit(reportLimiter, `report:${reporterId}`, 'Rapporteren')
   const { data, error } = await supabase
     .from('reports')
     .insert({

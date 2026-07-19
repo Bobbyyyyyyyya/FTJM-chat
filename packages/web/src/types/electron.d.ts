@@ -13,6 +13,7 @@ declare global {
       installUpdate: () => Promise<void>
       encryptStore: (key: string, value: string) => Promise<boolean>
       decryptStore: (key: string) => Promise<string | null>
+      checkMacBanned: () => Promise<{ banned: boolean; macs: string[]; bannedList: string[] }>
     }
   }
 }

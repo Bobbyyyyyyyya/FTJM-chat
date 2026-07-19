@@ -86,29 +86,49 @@ function App() {
   if (!isInitialized || loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-body">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-[#0f172a] flex items-center justify-center shadow-lg animate-pulse-slow overflow-hidden">
-            <svg viewBox="0 0 512 512" className="h-8 w-8">
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative w-20 h-20">
+            <svg viewBox="0 0 80 80" className="w-full h-full animate-scale-in">
               <defs>
-                <linearGradient id="loadAccent" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#2dd4bf"/>
-                  <stop offset="100%" stopColor="#38bdf8"/>
+                <linearGradient id="f-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="rgb(var(--surface))" />
+                  <stop offset="100%" stopColor="rgb(var(--surface-muted))" />
                 </linearGradient>
-                <linearGradient id="loadFg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ffffff"/>
-                  <stop offset="100%" stopColor="#e2e8f0"/>
+                <linearGradient id="f-accent" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="rgb(var(--accent-from-rgb))" />
+                  <stop offset="100%" stopColor="rgb(var(--accent-to-rgb))" />
                 </linearGradient>
+                <linearGradient id="f-shine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="white" stopOpacity="0" />
+                  <stop offset="50%" stopColor="white" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="white" stopOpacity="0" />
+                </linearGradient>
+                <clipPath id="f-clip">
+                  <rect x="0" y="0" width="80" height="80" rx="20" />
+                </clipPath>
               </defs>
-              <rect x="0" y="0" width="512" height="512" rx="88" fill="#0f172a"/>
-              <ellipse cx="256" cy="240" rx="140" ry="120" fill="url(#loadAccent)" opacity="0.12"/>
-              <rect x="172" y="380" width="168" height="6" rx="3" fill="url(#loadAccent)"/>
-              <g transform="translate(-4,-18)">
-                <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#loadFg)"/>
-                <path d="M186 148h156v48h-102v64h88v46h-88v106h-54V148z" fill="url(#loadAccent)" opacity="0.35" transform="translate(3,3)"/>
+              <rect x="0" y="0" width="80" height="80" rx="20" fill="url(#f-bg)" className="stroke-border" strokeWidth="1" />
+              <g clipPath="url(#f-clip)">
+                <rect className="f-shine-sweep" x="-40" y="0" width="40" height="80" fill="url(#f-shine)" />
               </g>
+              <text
+                x="40" y="54" textAnchor="middle"
+                fontSize="42" fontWeight="700" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+                fill="url(#f-accent)"
+                className="f-letter"
+              >
+                F
+              </text>
             </svg>
+            <div className="absolute inset-0 rounded-2xl bg-accent/10 blur-xl animate-pulse-slow" />
           </div>
-          <div className="text-primary text-sm font-medium">Loading...</div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex gap-1">
+              <span className="f-dot w-1.5 h-1.5 rounded-full bg-accent" style={{ animationDelay: '0ms' }} />
+              <span className="f-dot w-1.5 h-1.5 rounded-full bg-accent" style={{ animationDelay: '150ms' }} />
+              <span className="f-dot w-1.5 h-1.5 rounded-full bg-accent" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
         </div>
       </div>
     )

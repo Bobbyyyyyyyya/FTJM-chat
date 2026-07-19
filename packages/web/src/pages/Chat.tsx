@@ -1077,12 +1077,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           ) : (
                             comments.map((c: any) => (
                               <div key={c.id} className="flex gap-2 items-start">
-                                <button onClick={() => openProfile(c.user_id, c.name, c.photo)}
+                                <div
                                   className="h-6 w-6 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[7px] font-bold text-secondary shrink-0 mt-0.5">
                                   {c.photo ? (
                                     <img src={c.photo} alt={c.name} className="h-full w-full object-cover" />
                                   ) : c.name.charAt(0).toUpperCase()}
-                                </button>
+                                </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <span className="text-[11px] font-semibold text-primary truncate">{c.name}</span>
@@ -1497,6 +1497,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       </main>
 
       {/* Profile modal */}
+      <AnimatePresence>
       {profilePreview && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -1689,6 +1690,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           </motion.div>
         </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Report Modal */}
       <AnimatePresence>

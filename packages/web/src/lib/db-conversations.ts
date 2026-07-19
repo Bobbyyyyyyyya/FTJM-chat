@@ -1,6 +1,7 @@
 // Database service for managing conversations (DMs)
 import { supabase } from './supabase'
 import type { RealtimePayload } from './types'
+import { messageLimiter, typingLimiter, enforceRateLimit } from './rateLimiter'
 
 export interface Conversation {
   id: string
@@ -116,6 +117,7 @@ export async function sendMessage(
   isEncrypted = false,
   iv?: string
 ) {
+  enforceRateLimit(messageLimiter, `msg:${senderId}`, 'Berichten versturen')
   const { data, error } = await supabase
     .from('messages')
     .insert({
@@ -186,6 +188,7 @@ export async function setTypingStatus(
   userId: string,
   isTyping: boolean
 ) {
+  enforceRateLimit(typingLimiter, `typing:${userId}`, 'Typing status')
   const existing = await supabase
     .from('typing')
     .select('id')

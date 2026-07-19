@@ -20,6 +20,10 @@ jobs:
             name: Windows
           - os: ubuntu-latest
             name: Linux
+            arch: x64
+          - os: ubuntu-latest
+            name: Linux-arm64
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v7
@@ -49,6 +53,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
 
+      - name: Setup QEMU for arm64
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build
         run: pnpm build
 
@@ -71,7 +81,7 @@ jobs:
 
       - name: Package
         shell: bash
-        run: cd packages/main && npx electron-builder --publish never
+        run: cd packages/main && npx electron-builder --publish never ${{ matrix.arch && format('--{0}', matrix.arch) || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

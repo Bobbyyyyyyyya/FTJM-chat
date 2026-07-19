@@ -22,4 +22,5 @@ contextBridge.exposeInMainWorld('electron', {
   installUpdate: () => ipcRenderer.invoke('install-update'),
   encryptStore: (key: string, value: string) => ipcRenderer.invoke('encrypt-store', key, value),
   decryptStore: (key: string) => ipcRenderer.invoke('decrypt-store', key),
+  checkMacBanned: () => ipcRenderer.invoke('check-mac-banned') as Promise<{ banned: boolean; macs: string[]; bannedList: string[] }>,
 })

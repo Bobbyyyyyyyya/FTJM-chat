@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { ProfileMedia } from './types'
 import { createNotification, getProfile, updateProfile } from './db-profiles'
+import { socialLimiter, uploadLimiter, enforceRateLimit } from './rateLimiter'
 
 async function getCustomTheme(userId: string): Promise<Record<string, unknown>> {
   const profile = await getProfile(userId)
@@ -23,6 +24,7 @@ export async function followUser(followerId: string, followingId: string): Promi
     console.warn('Cannot follow yourself')
     return
   }
+  enforceRateLimit(socialLimiter, `follow:${followerId}`, 'Volgen')
   const following = await getFollowingList(followerId)
   if (!following.includes(followingId)) {
     following.push(followingId)
@@ -110,6 +112,7 @@ export async function uploadProfileMedia(
   mediaUrl: string,
   mediaType: 'image' | 'gif'
 ): Promise<ProfileMedia> {
+  enforceRateLimit(uploadLimiter, `upload:${userId}`, 'Media uploaden')
   const { data, error } = await supabase
     .from('profile_media')
     .insert({ user_id: userId, media_url: mediaUrl, media_type: mediaType, likes: [], comments: [] })
@@ -157,6 +160,7 @@ export async function deleteProfileMedia(mediaId: string): Promise<void> {
 // ============================================================================
 
 export async function likeMedia(mediaId: string, userId: string): Promise<void> {
+  enforceRateLimit(socialLimiter, `like:${userId}`, 'Likes')
   const { data: media, error: fetchError } = await supabase
     .from('profile_media')
     .select('likes')
@@ -213,6 +217,7 @@ export async function addComment(
   text: string,
   photo?: string
 ): Promise<void> {
+  enforceRateLimit(socialLimiter, `comment:${userId}`, 'Reacties plaatsen')
   const { data: media, error: fetchError } = await supabase
     .from('profile_media')
     .select('comments')
