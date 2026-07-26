@@ -44,7 +44,6 @@ jobs:
         run: |
           cat > .env.local << EOF
           VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_WSS_URL=${{ secrets.VITE_SUPABASE_WSS_URL }}
           VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
           EOF
