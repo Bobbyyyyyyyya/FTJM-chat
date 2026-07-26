@@ -149,68 +149,39 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }, [user?.id])
 
   useEffect(() => {
-    const loadConversations = async () => {
+    const initData = async () => {
       try {
-        const convs = await getConversations()
+        const [convs, posts] = await Promise.all([getConversations(), getPosts()])
         setConversations(convs)
-      } catch (error) {
-        console.error('Error loading conversations:', error)
-      }
-    }
-    loadConversations()
-  }, [])
-
-  // Pre-load all profiles on startup
-  useEffect(() => {
-    const loadAllProfiles = async () => {
-      const userIds = new Set<string>()
-
-      const convs = await getConversations()
-      convs.forEach((c) => {
-        const parts = Array.isArray(c.participants) ? c.participants : []
-        parts.forEach((id) => userIds.add(id))
-      })
-
-      const posts = await getPosts()
-      posts.forEach((p) => userIds.add(p.author_id))
-
-      const existing = new Set(Object.keys(profilesCache))
-      const toFetch = [...userIds].filter((id) => !existing.has(id))
-
-      const profiles = await getProfiles(toFetch)
-      setProfilesCache((prev) => {
-        const next = { ...prev }
-        for (const p of profiles) next[p.id] = p
-        return next
-      })
-    }
-
-    loadAllProfiles()
-  }, [])
-
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        const posts = await getPosts()
         setGeneralChat(posts)
+
+        const userIds = new Set<string>()
+        convs.forEach((c) => {
+          const parts = Array.isArray(c.participants) ? c.participants : []
+          parts.forEach((id) => userIds.add(id))
+        })
+        posts.forEach((p) => userIds.add(p.author_id))
+
+        const existing = new Set(Object.keys(profilesCache))
+        const toFetch = [...userIds].filter((id) => !existing.has(id))
+
+        if (toFetch.length > 0) {
+          const profiles = await getProfiles(toFetch)
+          setProfilesCache((prev) => {
+            const next = { ...prev }
+            for (const p of profiles) next[p.id] = p
+            return next
+          })
+        }
       } catch (error) {
-        console.error('Error loading posts:', error)
+        console.error('Error loading initial data:', error)
       }
     }
-    loadPosts()
 
-    // Pre-fetch profiles for general chat authors
-    getPosts().then((posts) => {
-      const authorIds = [...new Set(posts.map((p) => p.author_id))]
-      getProfiles(authorIds).then((profiles) => {
-        setProfilesCache((prev) => {
-          const next = { ...prev }
-          for (const p of profiles) next[p.id] = p
-          return next
-        })
-      })
-    })
+    initData()
+  }, [])
 
+  useEffect(() => {
     const subscription = subscribeToGeneralChat((payload) => {
       if (payload.type === 'INSERT' && payload.new) {
         const newPost = payload.new
@@ -255,7 +226,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   useEffect(() => {
     if (!user?.id) return
     let sub: any = null
+    let mounted = true
     getFollowingIds(user.id).then((ids) => {
+      if (!mounted) return
       sub = subscribeToFeed(ids, (payload) => {
         if (payload.type === 'INSERT') {
           setFeedMedia((prev) => [payload.new, ...prev])
@@ -264,7 +237,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         }
       })
     })
-    return () => sub?.unsubscribe()
+    return () => {
+      mounted = false
+      sub?.unsubscribe()
+    }
   }, [user?.id])
 
   useEffect(() => {
@@ -1087,17 +1063,21 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           {comments.length === 0 ? (
                             <p className="text-xs text-muted text-center py-2">No comments yet</p>
                           ) : (
-                            comments.map((c: any) => (
+                            comments.map((c: any) => {
+                              const commentProfile = profilesCache[c.user_id]
+                              const commentName = c.name || commentProfile?.display_name || 'User'
+                              const commentPhoto = c.photo || commentProfile?.photo_url
+                              return (
                               <div key={c.id} className="flex gap-2 items-start">
                                 <div
                                   className="h-6 w-6 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[7px] font-bold text-secondary shrink-0 mt-0.5">
-                                  {c.photo ? (
-                                    <img src={c.photo} alt={c.name} className="h-full w-full object-cover" />
-                                  ) : c.name.charAt(0).toUpperCase()}
+                                  {commentPhoto ? (
+                                    <img src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
+                                  ) : commentName.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-semibold text-primary truncate">{c.name}</span>
+                                    <span className="text-[11px] font-semibold text-primary truncate">{commentName}</span>
                                     <span className="text-[9px] text-muted shrink-0">{new Date(c.created_at).toLocaleDateString()}</span>
                                     {(c.user_id === user?.id) && (
                                       <button onClick={() => {
@@ -1113,7 +1093,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                   <p className="text-xs text-secondary leading-relaxed">{c.text}</p>
                                 </div>
                               </div>
-                            ))
+                            )
+                            })
                           )}
                           <div className="flex gap-2 pt-1">
                             <input

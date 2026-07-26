@@ -303,6 +303,11 @@ export function subscribeToProfileMedia(
   userId: string,
   callback: (payload: { type: 'INSERT' | 'DELETE'; new?: ProfileMedia; old?: ProfileMedia }) => void
 ) {
+  const existing = supabase.getChannels().find((ch) => ch.topic === 'realtime:profile-media-changes')
+  if (existing) {
+    supabase.removeChannel(existing)
+  }
+
   const channel = supabase
     .channel('profile-media-changes')
     .on(
@@ -325,6 +330,11 @@ export function subscribeToFeed(
   callback: (payload: { type: 'INSERT'; new: ProfileMedia }) => void
 ) {
   if (followingIds.length === 0) return null
+
+  const existing = supabase.getChannels().find((ch) => ch.topic === 'realtime:feed-changes')
+  if (existing) {
+    supabase.removeChannel(existing)
+  }
 
   const channel = supabase
     .channel('feed-changes')
