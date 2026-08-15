@@ -1,6 +1,6 @@
 {
   "name": "ftjm-chat",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "Cross-platform chat app with Electron, React, and Supabase",
   "private": true,
   "type": "module",
