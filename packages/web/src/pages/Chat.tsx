@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'motion/react'
 import { useAuthStore } from '@/hooks/useAuth'
 import {
@@ -43,10 +44,12 @@ import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard
 import SettingsContent, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsContent'
 import GamesArcade from '@/components/GamesArcade'
 import { isCallSignal } from '@/lib/db'
-import { compressImage } from '@/lib/storage'
+import { compressImage, checkUploadSize } from '@/lib/storage'
+import { getDefaultMessageTone } from '@/lib/default-sounds'
 import type { ChatTab, ProfileMedia as ProfileMediaType } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 import ReportModal from '@/components/ReportModal'
+import VerifiedBadge from '@/components/VerifiedBadge'
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
@@ -87,6 +90,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     bio?: string
     isCurrentUser: boolean
     role?: string | null
+    is_verified?: boolean
   } | null>(null)
   const [profilesCache, setProfilesCache] = useState<Record<string, any>>({})
 
@@ -425,6 +429,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         display_name: p.display_name || p.original_name || (userId === user?.id ? 'You' : `User ${userId.slice(0, 6)}`),
         photo_url: p.photo_url,
         role: p.role as string | null | undefined,
+        is_verified: !!p.is_verified,
       }
     }
     if (!selectedConversation) {
@@ -432,6 +437,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         display_name: userId === user?.id ? 'You' : `User ${userId.slice(0, 6)}`,
         photo_url: undefined,
         role: undefined,
+        is_verified: false,
       }
     }
     const participantNames = Array.isArray(selectedConversation.participant_names) ? selectedConversation.participant_names : []
@@ -440,7 +446,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     const index = participants.findIndex((id) => id === userId)
     const display_name = participantNames[index] || (userId === user?.id ? 'You' : `User ${userId.slice(0, 6)}`)
     const photo_url = participantPhotos[index]
-    return { display_name, photo_url, role: undefined }
+    return { display_name, photo_url, role: undefined, is_verified: false }
   }
 
   const openProfile = (userId: string, displayName?: string, photoUrl?: string) => {
@@ -454,6 +460,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         bio: p?.bio,
         isCurrentUser: userId === user?.id,
         role: p?.role,
+        is_verified: !!p?.is_verified,
       })
     const cached = profilesCache[userId]
     if (cached) setFromProfile(cached)
@@ -514,6 +521,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const handleUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user?.id) return
+    const sizeError = checkUploadSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
     setUploading(true)
     try {
       const { dataUri, mediaType } = await compressImage(file)
@@ -540,7 +553,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   function playNotificationSound(type: 'dm' | 'post') {
     const ns = (myProfile?.notification_settings || {}) as any
     if (!ns.enable_sounds) return
-    const url = type === 'dm' ? ns.message_sound : ns.post_sound
+    let url = type === 'dm' ? ns.message_sound : ns.post_sound
+    if (!url && type === 'dm') url = getDefaultMessageTone()
     if (!url) return
     try {
       const audio = new Audio(url)
@@ -585,7 +599,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     const convPhotos = Array.isArray(conv.participant_photos) ? conv.participant_photos : []
 
     if (conv.is_group) {
-      if (conv.title) return { display_name: conv.title, photo_url: undefined, isGroup: true }
+      if (conv.title) return { display_name: conv.title, photo_url: undefined, isGroup: true, is_verified: false }
       const others = convParticipants
         .map((id, i) => ({ id, name: convNames[i], photo: convPhotos[i] }))
         .filter((x) => x.id !== user?.id)
@@ -597,6 +611,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         display_name: firstNames.slice(0, 3).join(', ') + (firstNames.length > 3 ? ` +${firstNames.length - 3}` : ''),
         photo_url: undefined,
         isGroup: true,
+        is_verified: false,
       }
     }
 
@@ -605,7 +620,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     const cached = otherId ? profilesCache[otherId] : null
     const display_name = cached?.display_name || convNames[otherIndex] || convNames[0] || 'Conversation'
     const photo_url = cached?.photo_url || convPhotos[otherIndex]
-    return { display_name, photo_url, isGroup: false }
+    return { display_name, photo_url, isGroup: false, is_verified: !!cached?.is_verified }
   }
 
   return (
@@ -710,9 +725,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
-                          {preview.display_name}
-                        </p>
+                        <div className="flex items-center gap-1">
+                          <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                            {preview.display_name}
+                          </p>
+                          {!isGroup && preview.is_verified && <VerifiedBadge className="w-3 h-3" />}
+                        </div>
                         <p className="text-[11px] text-muted">
                           {isGroup ? 'Group' : 'Direct message'}
                         </p>
@@ -737,7 +755,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-primary truncate">{user?.display_name}</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs font-semibold text-primary truncate">{user?.display_name}</p>
+                {user?.is_verified && <VerifiedBadge className="w-3 h-3" />}
+              </div>
               <p className="text-[10px] text-muted">Online</p>
             </div>
             <div className="flex items-center gap-1">
@@ -1187,6 +1208,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             {!isMine && participant.role === 'mod' && (
                               <svg className="w-3 h-3 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
                             )}
+                            {!isMine && participant.is_verified && (
+                              <VerifiedBadge className="w-3 h-3" />
+                            )}
                           </span>
                         </div>
                         {isEditing ? (
@@ -1345,6 +1369,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             )}
                             {authorInfo.role === 'mod' && (
                               <svg className="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
+                            )}
+                            {authorInfo.is_verified && (
+                              <VerifiedBadge className="w-3.5 h-3.5" />
                             )}
                           </div>
                           <div className="flex items-center gap-2">
@@ -1542,6 +1569,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 <div className="pb-1 flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="text-lg font-bold text-primary truncate">{profilePreview.display_name}</p>
+                    {profilePreview.is_verified && (
+                      <VerifiedBadge className="w-4 h-4" />
+                    )}
                     {(profilePreview.role === 'admin' || profilePreview.role === 'mod') && (
                       <svg className="w-5 h-5 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/>

@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email?: string | null;
   role?: 'user' | 'admin' | 'mod' | null;
+  is_verified?: boolean;
   original_name?: string | null;
   public_key?: string | null;
   display_name?: string | null;

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { updateProfile, getProfile } from '@/lib/db'
-import { fileToDataUri, playSound } from '@/lib/storage'
+import { fileToDataUri, playSound, checkUploadSize } from '@/lib/storage'
+import { DEFAULT_RINGTONES, DEFAULT_MESSAGE_TONES, type DefaultSound } from '@/lib/default-sounds'
 
 interface NotificationSettings {
   enable_sounds: boolean
@@ -168,6 +170,11 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file) return
+      const sizeError = checkUploadSize(file)
+      if (sizeError) {
+        toast.error(sizeError)
+        return
+      }
       const dataUri = await fileToDataUri(file)
       if (!dataUri) return
       const name = file.name.replace(/\.[^/.]+$/, '') || 'Sound'
@@ -187,6 +194,11 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file) return
+      const sizeError = checkUploadSize(file)
+      if (sizeError) {
+        toast.error(sizeError)
+        return
+      }
       const dataUri = await fileToDataUri(file)
       if (!dataUri) return
       const name = file.name.replace(/\.[^/.]+$/, '') || 'Sound'
@@ -275,9 +287,9 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
                 <ToggleRow label="New posts in General" value={notif.notify_new_posts} onChange={(v) => setNotifField('notify_new_posts', v)} />
               </div>
               <div className="mt-4 space-y-3">
-                <SoundInput label="Message sound" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} onPreview={() => notif.message_sound && playSound(notif.message_sound)} onUpload={() => handleUploadSound('message_sound')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('message_sound', uri)} />
+                <SoundInput label="Message sound" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} onPreview={() => notif.message_sound && playSound(notif.message_sound)} onUpload={() => handleUploadSound('message_sound')} library={Object.entries(notif.sound_library)} defaults={DEFAULT_MESSAGE_TONES} onPickFromLibrary={(uri) => setNotifField('message_sound', uri)} />
                 <SoundInput label="Post sound" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} onPreview={() => notif.post_sound && playSound(notif.post_sound)} onUpload={() => handleUploadSound('post_sound')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('post_sound', uri)} />
-                <SoundInput label="Ringtone" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} onPreview={() => notif.ringtone_url && playSound(notif.ringtone_url)} onUpload={() => handleUploadSound('ringtone_url')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('ringtone_url', uri)} />
+                <SoundInput label="Ringtone" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} onPreview={() => notif.ringtone_url && playSound(notif.ringtone_url)} onUpload={() => handleUploadSound('ringtone_url')} library={Object.entries(notif.sound_library)} defaults={DEFAULT_RINGTONES} onPickFromLibrary={(uri) => setNotifField('ringtone_url', uri)} />
               </div>
 
               {/* Sound Library */}
@@ -438,13 +450,14 @@ function HexInput({ label, value, onChange }: { label: string; value: string; on
   )
 }
 
-function SoundInput({ label, value, onChange, onPreview, onUpload, library, onPickFromLibrary }: {
+function SoundInput({ label, value, onChange, onPreview, onUpload, library, defaults = [], onPickFromLibrary }: {
   label: string
   value: string
   onChange: (v: string) => void
   onPreview: () => void
   onUpload: () => void
   library: [string, string][]
+  defaults?: DefaultSound[]
   onPickFromLibrary: (uri: string) => void
 }) {
   const [showPicker, setShowPicker] = useState(false)
@@ -460,6 +473,8 @@ function SoundInput({ label, value, onChange, onPreview, onUpload, library, onPi
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showPicker])
 
+  const hasOptions = defaults.length > 0 || library.length > 0
+
   return (
     <div>
       <label className="text-xs text-muted font-medium mb-1 block">{label}</label>
@@ -474,21 +489,51 @@ function SoundInput({ label, value, onChange, onPreview, onUpload, library, onPi
           Preview
         </button>
         <div className="relative" ref={pickerRef}>
-          <button onClick={() => setShowPicker(!showPicker)} disabled={library.length === 0}
+          <button onClick={() => setShowPicker(!showPicker)} disabled={!hasOptions}
             className="px-3 py-2 rounded-xl text-xs font-medium bg-surface-muted text-secondary hover:bg-surface-hover disabled:opacity-40 transition-all">
             Library
           </button>
           {showPicker && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-surface border border-border rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
-              {library.map(([name, uri]) => (
-                <button key={name} onClick={() => { onChange(uri); setShowPicker(false) }}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-hover transition-all flex items-center gap-2 ${value === uri ? 'text-accent' : 'text-secondary'}`}>
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                  </svg>
-                  <span className="truncate">{name}</span>
-                </button>
-              ))}
+            <div className="absolute right-0 top-full mt-1 w-64 bg-surface border border-border rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+              {defaults.length > 0 && (
+                <>
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Defaults</div>
+                  {defaults.map((d) => (
+                    <div key={d.url} className="flex items-center gap-1 px-1 hover:bg-surface-hover transition-all">
+                      <button onClick={() => { onChange(d.url); setShowPicker(false) }}
+                        className={`flex-1 text-left px-2 py-2 text-xs flex items-center gap-2 ${value === d.url ? 'text-accent' : 'text-secondary'}`}>
+                        <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                        <span className="truncate">{d.name}</span>
+                      </button>
+                      <button onClick={() => playSound(d.url)} title={`Preview ${d.name}`}
+                        className="p-1.5 rounded-lg text-muted hover:text-accent transition-all">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+              {library.length > 0 && (
+                <>
+                  {defaults.length > 0 && (
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">My sounds</div>
+                  )}
+                  {library.map(([name, uri]) => (
+                    <button key={name} onClick={() => { onChange(uri); setShowPicker(false) }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-hover transition-all flex items-center gap-2 ${value === uri ? 'text-accent' : 'text-secondary'}`}>
+                      <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                      </svg>
+                      <span className="truncate">{name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>

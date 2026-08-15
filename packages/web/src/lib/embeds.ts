@@ -1,5 +1,6 @@
 const YOUTUBE_REGEX = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
 const URL_REGEX = /(https?:\/\/[^\s<]+[^\s<.,;:!?)}\]'"])/g
+const ARCADE_SCORE_REGEX = /\[ARCASE_SCORE_SHARE:([^:\]]+):(\d+):([^\]]+)\]/g
 
 export function extractUrls(text: string): string[] {
   return text.match(URL_REGEX) || []
@@ -41,6 +42,26 @@ export interface LinkEmbed {
 }
 
 export type EmbedData = YouTubeEmbed | ImageEmbed | LinkEmbed
+
+export interface ArcadeScoreShare {
+  game: string
+  score: number
+  player: string
+}
+
+export function extractArcadeScores(text: string): ArcadeScoreShare[] {
+  const matches: ArcadeScoreShare[] = []
+  const re = new RegExp(ARCADE_SCORE_REGEX.source, 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    matches.push({
+      game: m[1].trim(),
+      score: parseInt(m[2], 10),
+      player: m[3].trim(),
+    })
+  }
+  return matches
+}
 
 export async function fetchEmbed(url: string): Promise<EmbedData | null> {
   const youtubeId = getYouTubeId(url)

@@ -1,3 +1,13 @@
+export const MAX_UPLOAD_SIZE = 4 * 1024 * 1024 // 4 MB
+
+export function checkUploadSize(file: File): string | null {
+  if (file.size > MAX_UPLOAD_SIZE) {
+    const mb = Math.round(MAX_UPLOAD_SIZE / (1024 * 1024))
+    return `Bestand is te groot (max ${mb} MB)`
+  }
+  return null
+}
+
 export function fileToDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

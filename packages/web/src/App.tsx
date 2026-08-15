@@ -10,6 +10,7 @@ import SessionLockScreen from './components/SessionLockScreen'
 import BannedScreen from './components/BannedScreen'
 import VoiceCallUI from './components/VoiceCallUI'
 import UpdateNotifier from './components/UpdateNotifier'
+import { getDefaultRingtone } from './lib/default-sounds'
 import './App.css'
 
 function App() {
@@ -18,7 +19,7 @@ function App() {
   const activeIdentity = pendingUser || user
   const onlineUsers = usePresence(user?.id)
 
-  const ringtoneUrl = (activeIdentity?.notification_settings as Record<string, unknown> | undefined)?.ringtone_url as string | undefined
+  const ringtoneUrl = (activeIdentity?.notification_settings as Record<string, unknown> | undefined)?.ringtone_url as string | undefined || getDefaultRingtone()
   const voiceCall = useVoiceCall(
     activeIdentity?.id,
     activeIdentity?.display_name || 'Gebruiker',
