@@ -226,41 +226,56 @@ export function useVoiceCall(
     })
   }
 
-  function sendHangup(ch: RealtimeChannel, roomId: string) {
+  async function sendHangup(ch: RealtimeChannel, roomId: string) {
     const ts = Date.now()
     const r = Math.random().toString(36).substring(2, 7)
-    ch.send({ type: 'broadcast', event: 'ended', payload: { msgId: `ended_${ts}_${r}`, senderId: userId } })
-    ch.send({ type: 'broadcast', event: 'hangup', payload: { msgId: `hangup_${ts}_${r}`, senderId: userId } })
-    ch.send({ type: 'broadcast', event: 'call_ended', payload: { msgId: `call_ended_${ts}_${r}`, senderId: userId } })
+    await ch.send({ type: 'broadcast', event: 'ended', payload: { msgId: `ended_${ts}_${r}`, senderId: userId } })
+    await ch.send({ type: 'broadcast', event: 'hangup', payload: { msgId: `hangup_${ts}_${r}`, senderId: userId } })
+    await ch.send({ type: 'broadcast', event: 'call_ended', payload: { msgId: `call_ended_${ts}_${r}`, senderId: userId } })
   }
 
-  function endCall() {
+  async function endCall() {
     const call = activeCallRef.current
     if (!call || !userId) return
-    if (outboundRef.current) {
-      sendHangup(outboundRef.current, call.roomId)
-    } else {
-      const target = call.callerId === userId ? call.receiverId : call.callerId
-      const ch = supabase.channel(`calls:${target}`, { config: { broadcast: { self: false } } })
-      ch.subscribe((status) => {
-        if (status !== 'SUBSCRIBED') return
-        sendHangup(ch, call.roomId)
-        ch.unsubscribe()
-      })
+    try {
+      if (outboundRef.current) {
+        await sendHangup(outboundRef.current, call.roomId)
+      } else {
+        const target = call.callerId === userId ? call.receiverId : call.callerId
+        const ch = supabase.channel(`calls:${target}`, { config: { broadcast: { self: false } } })
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => resolve(), 2000)
+          ch.subscribe((status) => {
+            if (status !== 'SUBSCRIBED') return
+            sendHangup(ch, call.roomId).finally(() => {
+              ch.unsubscribe()
+              clearTimeout(timeout)
+              resolve()
+            })
+          })
+        })
+      }
+    } catch (err) {
+      console.error('[call] hangup send error:', err)
     }
     cleanup()
   }
 
-  function declineCall() {
+  async function declineCall() {
     const call = activeCallRef.current
     if (!call || !userId) return
     const ch = supabase.channel(`calls:${call.callerId}`, {
       config: { broadcast: { self: false } },
     })
-    ch.subscribe((status) => {
-      if (status !== 'SUBSCRIBED') return
-      sendHangup(ch, call.roomId)
-      ch.unsubscribe()
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => resolve(), 2000)
+      ch.subscribe(async (status) => {
+        if (status !== 'SUBSCRIBED') return
+        await sendHangup(ch, call.roomId)
+        ch.unsubscribe()
+        clearTimeout(timeout)
+        resolve()
+      })
     })
     setCallState('idle')
     setActiveCall(null)

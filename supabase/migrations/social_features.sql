@@ -38,6 +38,13 @@ create policy "profile_media_delete_own"
   to authenticated
   using (auth.uid()::text = user_id);
 
+-- UPDATE: any authenticated user can update likes/comments on any media
+create policy "profile_media_update_authenticated"
+  on public.profile_media for update
+  to authenticated
+  using (true)
+  with check (true);
+
 -- ============================================================================
 -- ENABLE REALTIME
 -- ============================================================================

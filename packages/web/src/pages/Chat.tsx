@@ -51,6 +51,42 @@ import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 import ReportModal from '@/components/ReportModal'
 import VerifiedBadge from '@/components/VerifiedBadge'
 
+const MAX_MESSAGE_LENGTH = 5000
+const MESSAGE_COLLAPSE_LENGTH = 500
+const HEAVY_RENDER_THRESHOLD = 2000
+
+function MessageContent({ text, isMine, isExpanded, onToggle }: { text: string; isMine: boolean; isExpanded: boolean; onToggle: () => void }) {
+  const isLong = text.length > MESSAGE_COLLAPSE_LENGTH
+  const displayText = isLong && !isExpanded ? text.slice(0, MESSAGE_COLLAPSE_LENGTH) : text
+  const shouldSkipHeavy = text.length > HEAVY_RENDER_THRESHOLD
+
+  return (
+    <>
+      <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
+        <LinkifyText text={displayText} />
+        {isLong && !isExpanded && (
+          <span className="text-muted">...</span>
+        )}
+      </div>
+      {!shouldSkipHeavy && <DataUriMedia text={displayText} />}
+      {!shouldSkipHeavy && <MessageEmbeds text={displayText} />}
+      {isLong && (
+        <button
+          onClick={onToggle}
+          className={`text-[11px] mt-1 font-medium transition-colors ${isMine ? 'text-white/60 hover:text-white/80' : 'text-accent hover:text-accent-hover'}`}
+        >
+          {isExpanded ? 'Toon minder' : `Toon meer (${text.length} tekens)`}
+        </button>
+      )}
+      {text.length > MAX_MESSAGE_LENGTH && (
+        <div className={`text-[10px] mt-1 ${isMine ? 'text-white/40' : 'text-muted'}`}>
+          {text.length} tekens
+        </div>
+      )}
+    </>
+  )
+}
+
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(
     () => (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'light' | 'dark') || 'light'
@@ -99,6 +135,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [replyingTo, setReplyingTo] = useState<Post | null>(null)
   const [sending, setSending] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
 
   // Social state
   const [feedMedia, setFeedMedia] = useState<ProfileMediaType[]>([])
@@ -234,10 +271,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     getFollowingIds(user.id).then((ids) => {
       if (!mounted) return
       sub = subscribeToFeed(ids, (payload) => {
-        if (payload.type === 'INSERT') {
-          setFeedMedia((prev) => [payload.new, ...prev])
-          const name = profilesCache[payload.new.user_id]?.display_name || 'Someone'
+        if (payload.type === 'INSERT' && payload.new) {
+          setFeedMedia((prev) => [payload.new!, ...prev])
+          const name = profilesCache[payload.new!.user_id]?.display_name || 'Someone'
           sendDesktopNotification('New upload', `${name} heeft nieuwe media geüpload`, 'post')
+        } else if (payload.type === 'UPDATE' && payload.new) {
+          setFeedMedia((prev) => prev.map((m) => m.id === payload.new!.id ? payload.new! : m))
+        } else if (payload.type === 'DELETE' && payload.old) {
+          setFeedMedia((prev) => prev.filter((m) => m.id !== payload.old!.id))
         }
       })
     })
@@ -321,6 +362,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConvId || !user?.id || sending) return
+    if (messageInput.length > MAX_MESSAGE_LENGTH) {
+      toast.error(`Bericht te lang. Maximum is ${MAX_MESSAGE_LENGTH} tekens.`)
+      return
+    }
     setSending(true)
     try {
       const encryptedText = encryptText(messageInput)
@@ -328,9 +373,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       setMessages((prev) => [...prev, newMessage])
       setMessageInput('')
       setIsTyping(false)
-      await setTypingStatus(selectedConvId, user.id, false)
-    } catch (error) {
+      setTypingStatus(selectedConvId, user.id, false).catch(() => {})
+    } catch (error: any) {
       console.error('Error sending message:', error)
+      toast.error(error?.message || 'Bericht versturen mislukt. Probeer het opnieuw.')
     } finally {
       setSending(false)
     }
@@ -338,6 +384,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   const handleSendPost = async () => {
     if (!messageInput.trim() || !user?.id || sending) return
+    if (messageInput.length > MAX_MESSAGE_LENGTH) {
+      toast.error(`Bericht te lang. Maximum is ${MAX_MESSAGE_LENGTH} tekens.`)
+      return
+    }
     setSending(true)
     try {
       const encryptedContent = encryptText(messageInput)
@@ -345,8 +395,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       setGeneralChat((prev) => [newPost, ...prev])
       setMessageInput('')
       setReplyingTo(null)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending post:', error)
+      const msg = error?.message || error?.retryAfterMs
+        ? `Post versturen mislukt. ${error.message}`
+        : 'Post versturen mislukt. Probeer het opnieuw.'
+      toast.error(msg)
     } finally {
       setSending(false)
     }
@@ -1236,11 +1290,17 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           </div>
                         ) : (
                           <>
-                            <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
-                              <LinkifyText text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                            </div>
-                            <DataUriMedia text={maybeDecryptText(msg.text, msg.is_encrypted)} />
-                            <MessageEmbeds text={maybeDecryptText(msg.text, msg.is_encrypted)} />
+                            <MessageContent
+                              text={maybeDecryptText(msg.text, msg.is_encrypted)}
+                              isMine={isMine}
+                              isExpanded={expandedMessages.has(msg.id)}
+                              onToggle={() => setExpandedMessages((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(msg.id)) next.delete(msg.id)
+                                else next.add(msg.id)
+                                return next
+                              })}
+                            />
                             <div className={`flex items-center gap-2 mt-1 ${isMine ? 'flex-row-reverse' : ''}`}>
                               <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-muted'}`}>{time}</p>
                               {isMine ? (
@@ -1458,11 +1518,17 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                         </div>
                       ) : (
                         <>
-                          <div className="text-primary whitespace-pre-line break-words text-sm leading-relaxed">
-                            <LinkifyText text={maybeDecryptText(post.content)} />
-                          </div>
-                          <DataUriMedia text={maybeDecryptText(post.content)} />
-                          <MessageEmbeds text={maybeDecryptText(post.content)} />
+                          <MessageContent
+                            text={maybeDecryptText(post.content)}
+                            isMine={false}
+                            isExpanded={expandedMessages.has(post.id)}
+                            onToggle={() => setExpandedMessages((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(post.id)) next.delete(post.id)
+                              else next.add(post.id)
+                              return next
+                            })}
+                          />
                         </>
                       )}
                     </motion.div>
@@ -1505,19 +1571,29 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="flex gap-3 max-w-3xl mx-auto">
-            <input
-              type="text"
-              placeholder={activeTab === 'dm' ? (selectedConvId ? 'Type a message...' : 'Select a conversation first') : 'Share something with everyone...'}
-              value={messageInput}
-              onChange={(e) => { setMessageInput(e.target.value); if (activeTab === 'dm') handleTyping(e.target.value.length > 0) }}
-              onKeyPress={(e) => { if (e.key === 'Enter') activeTab === 'dm' ? handleSendMessage() : handleSendPost() }}
-              className="input-field"
-              disabled={activeTab === 'dm' && !selectedConvId}
-            />
+          <div className="flex gap-3 max-w-3xl mx-auto items-end">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder={activeTab === 'dm' ? (selectedConvId ? 'Type a message...' : 'Select a conversation first') : 'Share something with everyone...'}
+                value={messageInput}
+                maxLength={MAX_MESSAGE_LENGTH}
+                onChange={(e) => { setMessageInput(e.target.value); if (activeTab === 'dm') handleTyping(e.target.value.length > 0) }}
+                onKeyPress={(e) => { if (e.key === 'Enter') activeTab === 'dm' ? handleSendMessage() : handleSendPost() }}
+                className="input-field"
+                disabled={activeTab === 'dm' && !selectedConvId}
+              />
+              {messageInput.length > MAX_MESSAGE_LENGTH * 0.8 && (
+                <span className={`absolute -bottom-4 right-1 text-[10px] ${
+                  messageInput.length >= MAX_MESSAGE_LENGTH ? 'text-red-400' : 'text-muted'
+                }`}>
+                  {messageInput.length}/{MAX_MESSAGE_LENGTH}
+                </span>
+              )}
+            </div>
             <button
               onClick={activeTab === 'dm' ? handleSendMessage : handleSendPost}
-              disabled={activeTab === 'dm' && !selectedConvId}
+              disabled={(activeTab === 'dm' && !selectedConvId) || !messageInput.trim() || messageInput.length > MAX_MESSAGE_LENGTH}
               className="btn-send"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

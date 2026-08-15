@@ -301,7 +301,7 @@ export async function getFeedMedia(userId: string, limit = 50, offset = 0): Prom
 
 export function subscribeToProfileMedia(
   userId: string,
-  callback: (payload: { type: 'INSERT' | 'DELETE'; new?: ProfileMedia; old?: ProfileMedia }) => void
+  callback: (payload: { type: 'INSERT' | 'UPDATE' | 'DELETE'; new?: ProfileMedia; old?: ProfileMedia }) => void
 ) {
   const existing = supabase.getChannels().find((ch) => ch.topic === 'realtime:profile-media-changes')
   if (existing) {
@@ -317,6 +317,11 @@ export function subscribeToProfileMedia(
     )
     .on(
       'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'profile_media', filter: `user_id=eq.${userId}` },
+      (payload: any) => callback({ type: 'UPDATE', new: payload.new as ProfileMedia, old: payload.old as ProfileMedia })
+    )
+    .on(
+      'postgres_changes',
       { event: 'DELETE', schema: 'public', table: 'profile_media', filter: `user_id=eq.${userId}` },
       (payload: any) => callback({ type: 'DELETE', old: payload.old as ProfileMedia })
     )
@@ -327,7 +332,7 @@ export function subscribeToProfileMedia(
 
 export function subscribeToFeed(
   followingIds: string[],
-  callback: (payload: { type: 'INSERT'; new: ProfileMedia }) => void
+  callback: (payload: { type: 'INSERT' | 'UPDATE' | 'DELETE'; new?: ProfileMedia; old?: ProfileMedia }) => void
 ) {
   if (followingIds.length === 0) return null
 
@@ -345,6 +350,26 @@ export function subscribeToFeed(
         const media = payload.new as ProfileMedia
         if (followingIds.includes(media.user_id)) {
           callback({ type: 'INSERT', new: media })
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'profile_media' },
+      (payload: any) => {
+        const media = payload.new as ProfileMedia
+        if (followingIds.includes(media.user_id)) {
+          callback({ type: 'UPDATE', new: media, old: payload.old as ProfileMedia })
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'profile_media' },
+      (payload: any) => {
+        const media = payload.old as ProfileMedia
+        if (media && followingIds.includes(media.user_id)) {
+          callback({ type: 'DELETE', old: media })
         }
       }
     )
