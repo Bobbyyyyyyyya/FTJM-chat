@@ -288,7 +288,7 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
               </div>
               <div className="mt-4 space-y-3">
                 <SoundInput label="Message sound" value={notif.message_sound} onChange={(v) => setNotifField('message_sound', v)} onPreview={() => notif.message_sound && playSound(notif.message_sound)} onUpload={() => handleUploadSound('message_sound')} library={Object.entries(notif.sound_library)} defaults={DEFAULT_MESSAGE_TONES} onPickFromLibrary={(uri) => setNotifField('message_sound', uri)} />
-                <SoundInput label="Post sound" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} onPreview={() => notif.post_sound && playSound(notif.post_sound)} onUpload={() => handleUploadSound('post_sound')} library={Object.entries(notif.sound_library)} onPickFromLibrary={(uri) => setNotifField('post_sound', uri)} />
+                <SoundInput label="Post sound" value={notif.post_sound} onChange={(v) => setNotifField('post_sound', v)} onPreview={() => notif.post_sound && playSound(notif.post_sound)} onUpload={() => handleUploadSound('post_sound')} library={Object.entries(notif.sound_library)} defaults={DEFAULT_MESSAGE_TONES} onPickFromLibrary={(uri) => setNotifField('post_sound', uri)} />
                 <SoundInput label="Ringtone" value={notif.ringtone_url} onChange={(v) => setNotifField('ringtone_url', v)} onPreview={() => notif.ringtone_url && playSound(notif.ringtone_url)} onUpload={() => handleUploadSound('ringtone_url')} library={Object.entries(notif.sound_library)} defaults={DEFAULT_RINGTONES} onPickFromLibrary={(uri) => setNotifField('ringtone_url', uri)} />
               </div>
 

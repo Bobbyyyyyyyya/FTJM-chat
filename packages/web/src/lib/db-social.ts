@@ -110,7 +110,7 @@ export async function getProfileMedia(userId: string): Promise<ProfileMedia[]> {
 export async function uploadProfileMedia(
   userId: string,
   mediaUrl: string,
-  mediaType: 'image' | 'gif'
+  mediaType: 'image' | 'gif' | 'video'
 ): Promise<ProfileMedia> {
   enforceRateLimit(uploadLimiter, `upload:${userId}`, 'Media uploaden')
   const { data, error } = await supabase

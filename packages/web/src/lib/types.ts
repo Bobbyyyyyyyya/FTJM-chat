@@ -22,6 +22,14 @@ export interface Profile {
   notification_settings?: {
     sound?: boolean
     desktop?: boolean
+    enable_sounds?: boolean
+    notify_new_messages?: boolean
+    notify_mentions?: boolean
+    notify_new_posts?: boolean
+    message_sound?: string
+    post_sound?: string
+    ringtone_url?: string
+    sound_library?: Record<string, string>
   } | null
   custom_theme?: Record<string, unknown> | null
   use_custom_theme?: boolean
@@ -187,7 +195,7 @@ export interface ProfileMedia {
   id: string
   user_id: string
   media_url: string
-  media_type: 'image' | 'gif'
+  media_type: 'image' | 'gif' | 'video'
   likes: string[]
   comments: ProfileMediaComment[]
   created_at: string

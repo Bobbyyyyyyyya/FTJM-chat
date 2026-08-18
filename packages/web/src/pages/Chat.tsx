@@ -44,8 +44,9 @@ import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard
 import SettingsContent, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsContent'
 import GamesArcade from '@/components/GamesArcade'
 import { isCallSignal } from '@/lib/db'
-import { compressImage, checkUploadSize } from '@/lib/storage'
+import { compressImage, checkUploadSize, checkVideoDuration, isVideoFile, fileToDataUri } from '@/lib/storage'
 import { getDefaultMessageTone } from '@/lib/default-sounds'
+import MediaFeedScroll from '@/components/MediaFeedScroll'
 import type { ChatTab, ProfileMedia as ProfileMediaType } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 import ReportModal from '@/components/ReportModal'
@@ -154,6 +155,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     reportedPostId?: string
   } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [feedScrollMode, setFeedScrollMode] = useState(false)
 
   // Voice call
   const {
@@ -581,9 +583,26 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
+    if (isVideoFile(file)) {
+      const durationError = await checkVideoDuration(file)
+      if (durationError) {
+        toast.error(durationError)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+    }
     setUploading(true)
     try {
-      const { dataUri, mediaType } = await compressImage(file)
+      let dataUri: string
+      let mediaType: 'image' | 'gif' | 'video'
+      if (isVideoFile(file)) {
+        dataUri = await fileToDataUri(file)
+        mediaType = 'video'
+      } else {
+        const result = await compressImage(file)
+        dataUri = result.dataUri
+        mediaType = result.mediaType
+      }
       const media = await uploadProfileMedia(user.id, dataUri, mediaType)
       setProfileMedia((prev) => [media, ...prev])
     } catch (error) {
@@ -606,9 +625,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   function playNotificationSound(type: 'dm' | 'post') {
     const ns = (myProfile?.notification_settings || {}) as any
-    if (!ns.enable_sounds) return
+    if (ns.enable_sounds === false) return
     let url = type === 'dm' ? ns.message_sound : ns.post_sound
-    if (!url && type === 'dm') url = getDefaultMessageTone()
+    if (!url) url = getDefaultMessageTone()
     if (!url) return
     try {
       const audio = new Audio(url)
@@ -1033,174 +1052,229 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
         {/* Feed - standalone */}
         {activeTab === 'feed' && (
-          <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 bg-body">
-            {feedMedia.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="flex flex-col items-center justify-center text-center py-20"
+          <div className="flex-1 flex flex-col min-h-0 bg-body">
+            {/* Feed header with scroll mode toggle */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-surface-glass backdrop-blur-sm shrink-0">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <span className="text-xs font-semibold text-primary">Feed</span>
+              </div>
+              <button
+                onClick={() => setFeedScrollMode(!feedScrollMode)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                  feedScrollMode ? 'bg-accent text-accent-content' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
+                }`}
               >
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-400/10 to-pink-400/10 flex items-center justify-center mb-4 border border-border/50">
-                  <svg className="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                  </svg>
-                </div>
-                <p className="text-muted text-lg font-medium">No media yet</p>
-                <p className="text-muted text-sm mt-1">Follow people to see their uploads here</p>
-              </motion.div>
+                {feedScrollMode ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    Grid
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Scroll
+                  </>
+                )}
+              </button>
+            </div>
+
+            {feedScrollMode ? (
+              <MediaFeedScroll
+                media={feedMedia}
+                profilesCache={profilesCache}
+                currentUserId={user?.id || ''}
+                onMediaUpdate={setFeedMedia}
+                openProfile={openProfile}
+              />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {feedMedia.map((media, index) => {
-                  const author = profilesCache[media.user_id]
-                  const authorName = author?.display_name || 'User'
-                  const likes: string[] = (media.likes || []) as string[]
-                  const comments: any[] = (media.comments || []) as any[]
-                  const isLiked = likes.includes(user?.id || '')
-                  const isExpanded = expandedComments.has(media.id)
-                  return (
-                    <motion.div
-                      key={media.id}
-                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
-                      className="bg-surface border border-border rounded-2xl overflow-hidden"
-                    >
-                      {/* Image */}
-                      <div className="relative aspect-square bg-black/5">
-                        <img src={media.media_url} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute top-3 left-3 flex items-center gap-2">
-                          <button onClick={() => openProfile(media.user_id, authorName, author?.photo_url)}
-                            className="h-7 w-7 rounded-full overflow-hidden bg-black/30 flex items-center justify-center text-[9px] font-bold text-white shrink-0 backdrop-blur-sm">
-                            {author?.photo_url ? (
-                              <img src={author.photo_url} alt={authorName} className="h-full w-full object-cover" />
-                            ) : authorName.charAt(0).toUpperCase()}
-                          </button>
-                          <span className="text-xs font-semibold text-white drop-shadow-sm flex items-center gap-1">
-                            {authorName}
-                            {author?.role === 'admin' && (
-                              <svg className="w-3 h-3 text-amber-300" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
-                            )}
-                            {author?.role === 'mod' && (
-                              <svg className="w-3 h-3 text-blue-300" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
-                            )}
-                          </span>
-                        </div>
-                        <span className="absolute top-3 right-3 text-[9px] px-2 py-0.5 rounded-full bg-black/30 text-white/80 backdrop-blur-sm uppercase font-medium">
-                          {media.media_type}
-                        </span>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="px-3 py-2 flex items-center gap-3 border-b border-border/50">
-                        <button
-                          onClick={() => {
-                            if (isLiked) {
-                              unlikeMedia(media.id, user!.id)
-                              setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, likes: likes.filter((id) => id !== user!.id) } : m))
-                            } else {
-                              likeMedia(media.id, user!.id)
-                              setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, likes: [...likes, user!.id] } : m))
-                            }
-                          }}
-                          className={`flex items-center gap-1 text-xs font-medium transition-all ${
-                            isLiked ? 'text-red-500' : 'text-secondary hover:text-red-400'
-                          }`}
+              <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+                {feedMedia.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex flex-col items-center justify-center text-center py-20"
+                  >
+                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-400/10 to-pink-400/10 flex items-center justify-center mb-4 border border-border/50">
+                      <svg className="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                      </svg>
+                    </div>
+                    <p className="text-muted text-lg font-medium">No media yet</p>
+                    <p className="text-muted text-sm mt-1">Follow people to see their uploads here</p>
+                  </motion.div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {feedMedia.map((media, index) => {
+                      const author = profilesCache[media.user_id]
+                      const authorName = author?.display_name || 'User'
+                      const likes: string[] = (media.likes || []) as string[]
+                      const comments: any[] = (media.comments || []) as any[]
+                      const isLiked = likes.includes(user?.id || '')
+                      const isExpanded = expandedComments.has(media.id)
+                      const isVideo = media.media_type === 'video'
+                      return (
+                        <motion.div
+                          key={media.id}
+                          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3), ease: [0.16, 1, 0.3, 1] }}
+                          className="bg-surface border border-border rounded-2xl overflow-hidden"
                         >
-                          <svg className="w-4 h-4" fill={isLiked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                          {likes.length}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (isExpanded) {
-                              setExpandedComments((prev) => { const next = new Set(prev); next.delete(media.id); return next })
-                            } else {
-                              setExpandedComments((prev) => { const next = new Set(prev); next.add(media.id); return next })
-                            }
-                          }}
-                          className={`flex items-center gap-1 text-xs font-medium transition-all ${
-                            isExpanded ? 'text-accent' : 'text-secondary hover:text-accent'
-                          }`}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                          {comments.length}
-                        </button>
-                        <span className="text-[10px] text-muted ml-auto">{new Date(media.created_at).toLocaleDateString()}</span>
-                      </div>
+                          {/* Media */}
+                          <div className="relative aspect-square bg-black/5">
+                            {isVideo ? (
+                              <video
+                                src={media.media_url}
+                                className="w-full h-full object-cover"
+                                controls
+                                preload="metadata"
+                                muted
+                              />
+                            ) : (
+                              <img src={media.media_url} alt="" className="w-full h-full object-cover" />
+                            )}
+                            <div className="absolute top-3 left-3 flex items-center gap-2">
+                              <button onClick={() => openProfile(media.user_id, authorName, author?.photo_url)}
+                                className="h-7 w-7 rounded-full overflow-hidden bg-black/30 flex items-center justify-center text-[9px] font-bold text-white shrink-0 backdrop-blur-sm">
+                                {author?.photo_url ? (
+                                  <img src={author.photo_url} alt={authorName} className="h-full w-full object-cover" />
+                                ) : authorName.charAt(0).toUpperCase()}
+                              </button>
+                              <span className="text-xs font-semibold text-white drop-shadow-sm flex items-center gap-1">
+                                {authorName}
+                                {author?.role === 'admin' && (
+                                  <svg className="w-3 h-3 text-amber-300" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
+                                )}
+                                {author?.role === 'mod' && (
+                                  <svg className="w-3 h-3 text-blue-300" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
+                                )}
+                              </span>
+                            </div>
+                            <span className="absolute top-3 right-3 text-[9px] px-2 py-0.5 rounded-full bg-black/30 text-white/80 backdrop-blur-sm uppercase font-medium">
+                              {media.media_type}
+                            </span>
+                          </div>
 
-                      {/* Comments */}
-                      {isExpanded && (
-                        <div className="px-3 py-2 space-y-2 max-h-48 overflow-y-auto bg-surface">
-                          {comments.length === 0 ? (
-                            <p className="text-xs text-muted text-center py-2">No comments yet</p>
-                          ) : (
-                            comments.map((c: any) => {
-                              const commentProfile = profilesCache[c.user_id]
-                              const commentName = c.name || commentProfile?.display_name || 'User'
-                              const commentPhoto = c.photo || commentProfile?.photo_url
-                              return (
-                              <div key={c.id} className="flex gap-2 items-start">
-                                <div
-                                  className="h-6 w-6 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[7px] font-bold text-secondary shrink-0 mt-0.5">
-                                  {commentPhoto ? (
-                                    <img src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
-                                  ) : commentName.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-semibold text-primary truncate">{commentName}</span>
-                                    <span className="text-[9px] text-muted shrink-0">{new Date(c.created_at).toLocaleDateString()}</span>
-                                    {(c.user_id === user?.id) && (
-                                      <button onClick={() => {
-                                        deleteComment(media.id, c.id)
-                                        setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, comments: comments.filter((cc: any) => cc.id !== c.id) } : m))
-                                      }} className="ml-auto text-muted hover:text-red-400 transition-colors shrink-0">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                      </button>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-secondary leading-relaxed">{c.text}</p>
-                                </div>
-                              </div>
-                            )
-                            })
-                          )}
-                          <div className="flex gap-2 pt-1">
-                            <input
-                              type="text"
-                              placeholder="Write a comment..."
-                              value={commentInputs[media.id] || ''}
-                              onChange={(e) => setCommentInputs((prev) => ({ ...prev, [media.id]: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && (commentInputs[media.id] || '').trim()) {
-                                  const text = commentInputs[media.id].trim()
-                                  addComment(media.id, user!.id, user?.display_name || 'User', text, user?.photo_url || undefined)
-                                  const newComment = {
-                                    id: crypto.randomUUID(),
-                                    user_id: user!.id,
-                                    name: user?.display_name || 'User',
-                                    photo: user?.photo_url || null,
-                                    text,
-                                    created_at: new Date().toISOString(),
-                                  }
-                                  setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, comments: [...comments, newComment] } : m))
-                                  setCommentInputs((prev) => ({ ...prev, [media.id]: '' }))
+                          {/* Actions */}
+                          <div className="px-3 py-2 flex items-center gap-3 border-b border-border/50">
+                            <button
+                              onClick={() => {
+                                if (isLiked) {
+                                  unlikeMedia(media.id, user!.id)
+                                  setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, likes: likes.filter((id) => id !== user!.id) } : m))
+                                } else {
+                                  likeMedia(media.id, user!.id)
+                                  setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, likes: [...likes, user!.id] } : m))
                                 }
                               }}
-                              className="flex-1 text-xs bg-surface-muted rounded-lg px-2.5 py-1.5 border border-border focus:outline-none focus:border-accent transition-colors placeholder:text-muted"
-                            />
+                              className={`flex items-center gap-1 text-xs font-medium transition-all ${
+                                isLiked ? 'text-red-500' : 'text-secondary hover:text-red-400'
+                              }`}
+                            >
+                              <svg className="w-4 h-4" fill={isLiked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                              </svg>
+                              {likes.length}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (isExpanded) {
+                                  setExpandedComments((prev) => { const next = new Set(prev); next.delete(media.id); return next })
+                                } else {
+                                  setExpandedComments((prev) => { const next = new Set(prev); next.add(media.id); return next })
+                                }
+                              }}
+                              className={`flex items-center gap-1 text-xs font-medium transition-all ${
+                                isExpanded ? 'text-accent' : 'text-secondary hover:text-accent'
+                              }`}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                              </svg>
+                              {comments.length}
+                            </button>
+                            <span className="text-[10px] text-muted ml-auto">{new Date(media.created_at).toLocaleDateString()}</span>
                           </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  )
-                })}
+
+                          {/* Comments */}
+                          {isExpanded && (
+                            <div className="px-3 py-2 space-y-2 max-h-48 overflow-y-auto bg-surface">
+                              {comments.length === 0 ? (
+                                <p className="text-xs text-muted text-center py-2">No comments yet</p>
+                              ) : (
+                                comments.map((c: any) => {
+                                  const commentProfile = profilesCache[c.user_id]
+                                  const commentName = c.name || commentProfile?.display_name || 'User'
+                                  const commentPhoto = c.photo || commentProfile?.photo_url
+                                  return (
+                                  <div key={c.id} className="flex gap-2 items-start">
+                                    <div
+                                      className="h-6 w-6 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[7px] font-bold text-secondary shrink-0 mt-0.5">
+                                      {commentPhoto ? (
+                                        <img src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
+                                      ) : commentName.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[11px] font-semibold text-primary truncate">{commentName}</span>
+                                        <span className="text-[9px] text-muted shrink-0">{new Date(c.created_at).toLocaleDateString()}</span>
+                                        {(c.user_id === user?.id) && (
+                                          <button onClick={() => {
+                                            deleteComment(media.id, c.id)
+                                            setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, comments: comments.filter((cc: any) => cc.id !== c.id) } : m))
+                                          }} className="ml-auto text-muted hover:text-red-400 transition-colors shrink-0">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                          </button>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-secondary leading-relaxed">{c.text}</p>
+                                    </div>
+                                  </div>
+                                )
+                                })
+                              )}
+                              <div className="flex gap-2 pt-1">
+                                <input
+                                  type="text"
+                                  placeholder="Write a comment..."
+                                  value={commentInputs[media.id] || ''}
+                                  onChange={(e) => setCommentInputs((prev) => ({ ...prev, [media.id]: e.target.value }))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && (commentInputs[media.id] || '').trim()) {
+                                      const text = commentInputs[media.id].trim()
+                                      addComment(media.id, user!.id, user?.display_name || 'User', text, user?.photo_url || undefined)
+                                      const newComment = {
+                                        id: crypto.randomUUID(),
+                                        user_id: user!.id,
+                                        name: user?.display_name || 'User',
+                                        photo: user?.photo_url || null,
+                                        text,
+                                        created_at: new Date().toISOString(),
+                                      }
+                                      setFeedMedia((prev) => prev.map((m) => m.id === media.id ? { ...m, comments: [...comments, newComment] } : m))
+                                      setCommentInputs((prev) => ({ ...prev, [media.id]: '' }))
+                                    }
+                                  }}
+                                  className="flex-1 text-xs bg-surface-muted rounded-lg px-2.5 py-1.5 border border-border focus:outline-none focus:border-accent transition-colors placeholder:text-muted"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1753,7 +1827,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*,.gif"
+                        accept="image/*,.gif,video/*"
                         onChange={handleUploadMedia}
                         className="hidden"
                       />
@@ -1776,10 +1850,11 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            Upload photo/GIF
+                            Upload photo/GIF/video
                           </>
                         )}
                       </button>
+                      <p className="text-[10px] text-muted mt-1.5 text-center">Max 5 MB. Videos max 5 seconden.</p>
                     </div>
                   )}
 
@@ -1792,7 +1867,16 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                     <div className="grid grid-cols-2 gap-2">
                       {profileMedia.map((media) => (
                         <div key={media.id} className="relative group rounded-xl overflow-hidden bg-black/5 aspect-square">
-                          <img src={media.media_url} alt="" className="w-full h-full object-cover" />
+                          {media.media_type === 'video' ? (
+                            <video
+                              src={media.media_url}
+                              className="w-full h-full object-cover"
+                              controls
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img src={media.media_url} alt="" className="w-full h-full object-cover" />
+                          )}
                           {profilePreview.isCurrentUser && (
                             <button
                               onClick={() => handleDeleteMedia(media.id)}
