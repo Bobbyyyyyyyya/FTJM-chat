@@ -217,7 +217,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   lockApp: () => {
     const { user } = get()
-    set({ user: null, pendingUser: user, loading: false })
+    const lockEnabled = localStorage.getItem('ftjm_lock_screen') !== 'disabled'
+    if (lockEnabled) {
+      set({ user: null, pendingUser: user, loading: false })
+    } else {
+      get().logout()
+    }
   },
 
   login: async (email: string, password: string) => {

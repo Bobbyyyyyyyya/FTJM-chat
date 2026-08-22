@@ -324,6 +324,18 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
                 )}
               </div>
             </div>
+
+            <div className="border-t border-border pt-4">
+              <h3 className="text-sm font-semibold text-primary mb-3">Security</h3>
+              <ToggleRow
+                label="Lock screen"
+                value={localStorage.getItem('ftjm_lock_screen') !== 'disabled'}
+                onChange={(v) => {
+                  if (v) localStorage.removeItem('ftjm_lock_screen')
+                  else localStorage.setItem('ftjm_lock_screen', 'disabled')
+                }}
+              />
+            </div>
           </>
         ) : (
           <>
