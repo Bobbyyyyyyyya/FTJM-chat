@@ -12,18 +12,15 @@ jobs:
   release:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
-            name: macOS
+            platform: mac
           - os: windows-latest
-            name: Windows
+            platform: win
           - os: ubuntu-latest
-            name: Linux
-            arch: x64
-          - os: ubuntu-latest
-            name: Linux-arm64
-            arch: arm64
+            platform: linux
 
     steps:
       - uses: actions/checkout@v4
@@ -39,26 +36,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Setup env files
+      - name: Create env file
         shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          ENC_KEY: ${{ secrets.VITE_ENCRYPTION_KEY }}
         run: |
-          cat > .env.local << EOF
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
-          EOF
-          sed -i 's/^[[:space:]]*//' .env.local
+          echo "VITE_SUPABASE_URL=$SUPABASE_URL" > .env.local
+          echo "VITE_SUPABASE_ANON_KEY=$SUPABASE_KEY" >> .env.local
+          echo "VITE_ENCRYPTION_KEY=$ENC_KEY" >> .env.local
           cp .env.local packages/web/.env.local
 
       - name: Install Linux build tools
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
 
       - name: Build
         run: pnpm build
 
       - name: Import macOS signing cert
-        if: runner.os == 'macOS'
+        if: matrix.platform == 'mac'
         run: |
           if [ -n "$CSC_LINK" ]; then
             echo "$CSC_LINK" | base64 --decode > /tmp/cert.p12
@@ -68,35 +66,19 @@ jobs:
             security import /tmp/cert.p12 -k temp.keychain -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp temp.keychain
           else
-            echo "No CSC_LINK secret set, skipping signing cert import"
+            echo "No signing cert, skipping"
           fi
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
-      - name: Package macOS
-        if: runner.os == 'macOS'
-        run: cd packages/main && npx electron-builder --mac --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Package Windows
-        if: runner.os == 'Windows'
-        run: cd packages/main && npx electron-builder --win --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Package Linux
-        if: runner.os == 'Linux'
-        run: cd packages/main && npx electron-builder --linux --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: List built artifacts
+      - name: Package
         shell: bash
-        run: ls -la packages/main/release/
+        run: cd packages/main && npx electron-builder --${{ matrix.platform }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Release Assets
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -105,8 +87,6 @@ jobs:
             packages/main/release/*.AppImage
             packages/main/release/*.deb
             packages/main/release/*.exe
-            packages/main/release/*.blockmap
-            packages/main/release/latest*.yml
           draft: false
           prerelease: false
         env:
