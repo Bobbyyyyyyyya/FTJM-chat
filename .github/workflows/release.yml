@@ -26,15 +26,17 @@ jobs:
             arch: arm64
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install dependencies
         run: pnpm install
@@ -47,23 +49,18 @@ jobs:
           VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ENCRYPTION_KEY=${{ secrets.VITE_ENCRYPTION_KEY }}
           EOF
+          sed -i 's/^[[:space:]]*//' .env.local
           cp .env.local packages/web/.env.local
 
       - name: Install Linux build tools
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
-
-      - name: Setup QEMU for arm64
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build
         run: pnpm build
 
       - name: Import macOS signing cert
-        if: matrix.os == 'macos-latest'
+        if: runner.os == 'macOS'
         run: |
           if [ -n "$CSC_LINK" ]; then
             echo "$CSC_LINK" | base64 --decode > /tmp/cert.p12
@@ -79,9 +76,21 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
-      - name: Package
-        shell: bash
-        run: cd packages/main && npx electron-builder --publish never ${{ matrix.arch && format('--{0}', matrix.arch) || '' }}
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: cd packages/main && npx electron-builder --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        run: cd packages/main && npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        run: cd packages/main && npx electron-builder --linux --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -90,7 +99,7 @@ jobs:
         run: ls -la packages/main/release/
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             packages/main/release/*.dmg
