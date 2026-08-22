@@ -162,7 +162,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: null, pendingUser: null, loading: false, bannedInfo: banned })
           return
         }
-        set({ pendingUser: profile, loading: false })
+        if (localStorage.getItem('ftjm_lock_screen') === 'disabled') {
+          set({ user: profile, pendingUser: null, loading: false })
+        } else {
+          set({ pendingUser: profile, loading: false })
+        }
       } else {
         set({ user: null, loading: false })
       }
