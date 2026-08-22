@@ -112,6 +112,7 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
   const [theme, setTheme] = useState<CustomTheme>(DEFAULT_THEME)
   const [saving, setSaving] = useState(false)
   const [desktopNotif, setDesktopNotif] = useState(Notification.permission === 'granted')
+  const [lockScreenEnabled, setLockScreenEnabled] = useState(() => localStorage.getItem('ftjm_lock_screen') !== 'disabled')
 
   useEffect(() => {
     if (!userId) return
@@ -329,8 +330,9 @@ export default function SettingsContent({ userId, onClose }: { userId: string; o
               <h3 className="text-sm font-semibold text-primary mb-3">Security</h3>
               <ToggleRow
                 label="Lock screen"
-                value={localStorage.getItem('ftjm_lock_screen') !== 'disabled'}
+                value={lockScreenEnabled}
                 onChange={(v) => {
+                  setLockScreenEnabled(v)
                   if (v) localStorage.removeItem('ftjm_lock_screen')
                   else localStorage.setItem('ftjm_lock_screen', 'disabled')
                 }}
