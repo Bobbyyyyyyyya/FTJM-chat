@@ -73,7 +73,7 @@ const createWindow = () => {
   console.log('Loading URL:', startUrl)
   mainWindow.loadURL(startUrl)
 
-  mainWindow.webContents.openDevTools()
+  if (isDev) mainWindow.webContents.openDevTools()
 
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -308,7 +308,13 @@ function setupIpcHandlers() {
   })
 
   ipcMain.handle('open-update-url', (_event, url: string) => {
-    shell.openExternal(url)
+    try {
+      const parsed = new URL(url)
+      const allowedHosts = ['github.com', 'www.github.com']
+      if (parsed.protocol === 'https:' && allowedHosts.includes(parsed.hostname)) {
+        shell.openExternal(url)
+      }
+    } catch {}
   })
 
   ipcMain.handle('install-update', () => {
@@ -329,7 +335,7 @@ function setupIpcHandlers() {
       }
     }
     const banned = allMacs.some((mac) => isMacBanned(mac))
-    return { banned, macs: allMacs, bannedList: BANNED_MACS }
+    return { banned }
   })
 
   ipcMain.handle('encrypt-store', (_event, key: string, value: string) => {

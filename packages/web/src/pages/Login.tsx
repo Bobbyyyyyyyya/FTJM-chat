@@ -109,9 +109,49 @@ export default function LoginPage() {
   const [profilePreview, setProfilePreview] = useState<User | null>(null)
   const [lookingUp, setLookingUp] = useState(false)
   const [focusedField, setFocusedField] = useState<string | null>(null)
+  const [showPiracyWarning, setShowPiracyWarning] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { login, signup } = useAuthStore()
+
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)
+
+  const isPiracyName = (name: string): boolean => {
+    const n = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const blocked = [
+      // === JONATECH ===
+      'jonatech', 'jonateck', 'jonatek', 'jonateq', 'jonatex', 'jonatechh',
+      'jonateccc', 'jonatecch', 'jonatecchh', 'jonatecc', 'jonnatech',
+      'jonatechh', 'jonatec', 'jonatech', 'j0natech', 'jon4tech',
+      'jonatezh', 'jonat3ch', 'jonat3ck', 'jon4tek', 'jonatexh',
+      'jonateccch', 'jonatechx', 'jonatechz', 'jonatech1', 'jonatech2',
+      'xjonatech', 'jonatechx', 'ijonatech', 'jonatechi',
+      'jonatechmarko', 'jonatechmarco', 'jonatechmarkohoksen',
+      'jonatechmarcohoksen', 'jonatechmarcohoksen',
+
+      // === MARKO ===
+      'marko', 'marco', 'markoo', 'marccoo', 'marrko', 'marcko',
+      'maarko', 'markoo', 'm4rko', 'm4rco', 'mark0', 'marc0',
+      'marqo', 'marqoo', 'maarkoo', 'mmarko', 'markko', 'marckoo',
+      'xmarko', 'markox', 'imarko', 'markoi',
+
+      // === HOKSEN ===
+      'hoksen', 'hokksen', 'hoxen', 'hokssen', 'hokkssen', 'hokseenn',
+      'hoksen', 'h0ksen', 'hokz3n', 'hoksen', 'hokseenn', 'hokksenn',
+      'xhoksen', 'hoksenx', 'ihoksen', 'hokseni',
+      'hoxxen', 'hokzen', 'hoksen', 'hokssenn',
+
+      // === COMBOS / FULL NAMES ===
+      'jonatechmarko', 'jonatechmarco', 'jonatechm4rko',
+      'jonatechm4rco', 'j0natechmarko', 'j0natechmarco',
+      'jon4techmarko', 'jon4techmarco', 'jonatechmarkohoksen',
+      'jonatechmarcohoksen', 'jonatechm4rk0h0ksen',
+      'jmh', 'jmho', 'jmk', 'jonatechmh',
+      'jonatech.marko.hoksen', 'jonatech-marko-hoksen',
+      'jonatech_marko_hoksen', 'jonatechmarkohoksen',
+    ]
+    return blocked.some((v) => n.includes(v))
+  }
 
   useEffect(() => {
     if (!email.trim() || isSignup) {
@@ -140,9 +180,18 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (!isValidEmail(email.trim())) {
+      setError('Voer een geldig e-mailadres in')
+      return
+    }
     setIsLoading(true)
     try {
       if (isSignup) {
+        if (isPiracyName(displayName)) {
+          setShowPiracyWarning(true)
+          setIsLoading(false)
+          return
+        }
         await signup(email, password, displayName)
       } else {
         await login(email, password)
@@ -373,12 +422,15 @@ export default function LoginPage() {
                     background: focusedField === 'email'
                       ? 'linear-gradient(135deg, rgba(59,130,246,0.12), rgba(37,99,235,0.06))'
                       : 'rgba(30,58,95,0.3)',
-                    border: `1px solid ${focusedField === 'email' ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
+                    border: `1px solid ${email.trim() && !isValidEmail(email) ? 'rgba(239,68,68,0.5)' : focusedField === 'email' ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
                     boxShadow: focusedField === 'email' ? '0 0 20px rgba(59,130,246,0.1)' : 'none',
                   }}
                   placeholder="you@example.com"
                   required
                 />
+                {email.trim() && !isValidEmail(email) && (
+                  <p className="text-[11px] text-red-400/80 mt-1.5">Ongeldig e-mailadres</p>
+                )}
               </div>
             </div>
 
@@ -508,7 +560,7 @@ export default function LoginPage() {
 
             <motion.button
               type="submit"
-              disabled={isLoading || (isSignup && !agreedToTerms)}
+              disabled={isLoading || !isValidEmail(email.trim()) || (isSignup && !agreedToTerms)}
               whileHover={{ scale: 1.01, boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}
               whileTap={{ scale: 0.98 }}
               className="w-full font-semibold py-3 rounded-xl text-white text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative overflow-hidden"
@@ -572,6 +624,107 @@ export default function LoginPage() {
       {/* Bottom gradient fade */}
       <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
         style={{ background: 'linear-gradient(to top, rgba(2,6,23,0.8), transparent)' }} />
+
+      {/* Anti Name Piracy Warning */}
+      <AnimatePresence>
+        {showPiracyWarning && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6"
+            style={{ background: 'rgba(0,0,0,0.85)' }}
+          >
+            <motion.div
+              initial={{ scale: 0.5, rotate: -5 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0.5, rotate: 5 }}
+              transition={{ type: 'spring', damping: 12, stiffness: 200 }}
+              className="relative max-w-lg w-full text-center p-10 rounded-3xl"
+              style={{
+                background: 'linear-gradient(135deg, rgba(220,38,38,0.15), rgba(220,38,38,0.05))',
+                border: '2px solid rgba(220,38,38,0.4)',
+                boxShadow: '0 0 80px rgba(220,38,38,0.3), 0 0 200px rgba(220,38,38,0.1)',
+              }}
+            >
+              {/* Warning icon */}
+              <motion.div
+                animate={{ rotate: [0, -10, 10, -10, 10, 0] }}
+                transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
+                className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(220,38,38,0.3), rgba(220,38,38,0.1))',
+                  border: '2px solid rgba(220,38,38,0.5)',
+                }}
+              >
+                <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </motion.div>
+
+              <motion.h2
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-3xl font-extrabold mb-3"
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #f87171)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                NAME PIRACY DETECTED
+              </motion.h2>
+
+              <motion.p
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.35 }}
+                className="text-base mb-2"
+                style={{ color: '#fca5a5' }}
+              >
+                Het gebruik van de naam <span className="font-bold text-red-300">"Jonatech Marko Hoksen"</span> of variaties daarvan is niet toegestaan.
+              </motion.p>
+              <motion.p
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-sm mb-8"
+                style={{ color: '#f87171' }}
+              >
+                Kies een andere display name om door te gaan.
+              </motion.p>
+
+              <motion.button
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.65 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { setShowPiracyWarning(false); setDisplayName('') }}
+                className="px-8 py-3 rounded-xl font-semibold text-white text-sm transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #dc2626, #ef4444)',
+                  boxShadow: '0 0 30px rgba(220,38,38,0.3)',
+                }}
+              >
+                Ik begrijp het
+              </motion.button>
+
+              {/* Decorative scan lines */}
+              <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none opacity-10">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute h-px w-full bg-red-500"
+                    style={{ top: `${(i + 1) * 14}%` }}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

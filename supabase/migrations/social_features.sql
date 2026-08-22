@@ -9,7 +9,7 @@ create table public.profile_media (
   id uuid primary key default gen_random_uuid(),
   user_id text not null references public.profiles(id) on delete cascade,
   media_url text not null,
-  media_type text not null check (media_type in ('image', 'gif')),
+  media_type text not null check (media_type in ('image', 'gif', 'video')),
   created_at timestamptz not null default now()
 );
 

@@ -11,7 +11,7 @@ export function encryptText(plaintext: string) {
   return `${GC_PREFIX}${encrypted}`
 }
 
-const LEGACY_KEY = 'app-chat-secret-key-2024'
+const LEGACY_KEY = import.meta.env.VITE_LEGACY_ENCRYPTION_KEY || ''
 
 export function decryptText(ciphertext: string) {
   if (!ciphertext) return ciphertext

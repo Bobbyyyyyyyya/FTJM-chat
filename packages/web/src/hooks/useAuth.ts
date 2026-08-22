@@ -222,14 +222,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email: string, password: string) => {
     try {
+      set({ loading: true })
       enforceRateLimit(authLimiter, 'login', 'Inloggen')
       if (isHardwareBanned()) {
-        set({ bannedInfo: getMacBanInfo() })
+        set({ loading: false, bannedInfo: getMacBanInfo() })
         return
       }
       const macBan = await checkMacBan()
       if (macBan) {
-        set({ bannedInfo: macBan })
+        set({ loading: false, bannedInfo: macBan })
         return
       }
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -260,14 +261,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signup: async (email: string, password: string, displayName: string) => {
     try {
+      set({ loading: true })
       enforceRateLimit(authLimiter, 'signup', 'Registreren')
       if (isHardwareBanned()) {
-        set({ bannedInfo: getMacBanInfo() })
+        set({ loading: false, bannedInfo: getMacBanInfo() })
         return
       }
       const macBan = await checkMacBan()
       if (macBan) {
-        set({ bannedInfo: macBan })
+        set({ loading: false, bannedInfo: macBan })
         return
       }
       const { data, error } = await supabase.auth.signUp({ email, password })

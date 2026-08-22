@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { egressLimiter, RateLimitError } from './rateLimiter'
+import { egressLimiter } from './rateLimiter'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -27,11 +27,7 @@ function getAccessToken(): string {
 const originalFetch = window.fetch.bind(window)
 window.fetch = async (...args) => {
   if (!egressLimiter.tryAcquire('egress-global')) {
-    const wait = Math.ceil(egressLimiter.resetTimeMs('egress-global') / 1000)
-    throw new RateLimitError(
-      `Te veel verzoeken naar de server. Wacht ${wait} seconden.`,
-      egressLimiter.resetTimeMs('egress-global')
-    )
+    console.warn('⚠️ Egress rate limit reached, allowing request anyway')
   }
   return originalFetch(...args)
 }

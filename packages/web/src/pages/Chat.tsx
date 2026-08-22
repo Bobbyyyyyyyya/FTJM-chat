@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'motion/react'
 import { useAuthStore } from '@/hooks/useAuth'
@@ -44,9 +44,10 @@ import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard
 import SettingsContent, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsContent'
 import GamesArcade from '@/components/GamesArcade'
 import { isCallSignal } from '@/lib/db'
-import { compressImage, checkUploadSize, checkVideoDuration, isVideoFile, fileToDataUri } from '@/lib/storage'
+import { compressImage, compressVideo, checkUploadSize, checkVideoDuration, isVideoFile, fileToDataUri } from '@/lib/storage'
 import { getDefaultMessageTone } from '@/lib/default-sounds'
 import MediaFeedScroll from '@/components/MediaFeedScroll'
+import VideoTrimmer from '@/components/VideoTrimmer'
 import type { ChatTab, ProfileMedia as ProfileMediaType } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 import ReportModal from '@/components/ReportModal'
@@ -130,6 +131,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     is_verified?: boolean
   } | null>(null)
   const [profilesCache, setProfilesCache] = useState<Record<string, any>>({})
+  const profilesCacheRef = useRef<Record<string, any>>({})
+  const fetchingProfiles = useRef<Set<string>>(new Set())
 
   const [editingId, setEditingId] = useState<{type: 'dm' | 'general', id: string} | null>(null)
   const [editingValue, setEditingValue] = useState('')
@@ -155,7 +158,54 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     reportedPostId?: string
   } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const feedFileInputRef = useRef<HTMLInputElement>(null)
   const [feedScrollMode, setFeedScrollMode] = useState(false)
+  const [feedSort, setFeedSort] = useState<'newest' | 'popular' | 'most_commented'>('newest')
+  const [showSortMenu, setShowSortMenu] = useState(false)
+
+  // Hidden conversations (persisted in localStorage)
+  const [hiddenConversations, setHiddenConversations] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('ftjm_hidden_conversations')
+      return saved ? new Set(JSON.parse(saved)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+  const [showHidden, setShowHidden] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; convId: string } | null>(null)
+  const [trimmerFile, setTrimmerFile] = useState<File | null>(null)
+
+  // Persist hidden conversations to localStorage
+  useEffect(() => {
+    localStorage.setItem('ftjm_hidden_conversations', JSON.stringify([...hiddenConversations]))
+  }, [hiddenConversations])
+
+  const toggleHideConversation = useCallback((convId: string) => {
+    setHiddenConversations((prev) => {
+      const next = new Set(prev)
+      if (next.has(convId)) next.delete(convId)
+      else next.add(convId)
+      return next
+    })
+    setContextMenu(null)
+  }, [])
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return
+    const handler = () => setContextMenu(null)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [contextMenu])
+
+  // Close sort menu on outside click
+  useEffect(() => {
+    if (!showSortMenu) return
+    const handler = () => setShowSortMenu(false)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [showSortMenu])
 
   // Voice call
   const {
@@ -175,6 +225,21 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       }
     }
   }, [])
+
+  const fetchProfiles = async (ids: string[]) => {
+    const uncached = ids.filter((id) => !profilesCacheRef.current[id] && !fetchingProfiles.current.has(id))
+    if (uncached.length === 0) return
+    uncached.forEach((id) => fetchingProfiles.current.add(id))
+    try {
+      const profiles = await getProfiles(uncached)
+      const updated = { ...profilesCacheRef.current }
+      for (const p of profiles) updated[p.id] = p
+      profilesCacheRef.current = updated
+      setProfilesCache(updated)
+    } finally {
+      uncached.forEach((id) => fetchingProfiles.current.delete(id))
+    }
+  }
 
   // Load profile for theme + notifications
   useEffect(() => {
@@ -205,19 +270,10 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         })
         posts.forEach((p) => userIds.add(p.author_id))
 
-        const existing = new Set(Object.keys(profilesCache))
-        const toFetch = [...userIds].filter((id) => !existing.has(id))
-
-        if (toFetch.length > 0) {
-          const profiles = await getProfiles(toFetch)
-          setProfilesCache((prev) => {
-            const next = { ...prev }
-            for (const p of profiles) next[p.id] = p
-            return next
-          })
-        }
+        await fetchProfiles([...userIds])
       } catch (error) {
         console.error('Error loading initial data:', error)
+        toast.error('Gegevens konden niet worden geladen. Controleer je internetverbinding.')
       }
     }
 
@@ -232,10 +288,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           setGeneralChat((prev) => [newPost, ...prev])
           sendDesktopNotification('New post in General', maybeDecryptText(newPost.content), 'post')
         }
-        if (!profilesCache[newPost.author_id]) {
-          getProfile(newPost.author_id).then((p) => {
-            if (p) setProfilesCache((prev) => ({ ...prev, [newPost.author_id]: p }))
-          })
+        if (!profilesCacheRef.current[newPost.author_id]) {
+          fetchProfiles([newPost.author_id])
         }
       } else if (payload.type === 'UPDATE' && payload.new) {
         setGeneralChat((prev) => prev.map((p) => (p.id === payload.new!.id ? payload.new! : p)))
@@ -275,7 +329,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       sub = subscribeToFeed(ids, (payload) => {
         if (payload.type === 'INSERT' && payload.new) {
           setFeedMedia((prev) => [payload.new!, ...prev])
-          const name = profilesCache[payload.new!.user_id]?.display_name || 'Someone'
+          const name = profilesCacheRef.current[payload.new!.user_id]?.display_name || 'Someone'
           sendDesktopNotification('New upload', `${name} heeft nieuwe media geüpload`, 'post')
         } else if (payload.type === 'UPDATE' && payload.new) {
           setFeedMedia((prev) => prev.map((m) => m.id === payload.new!.id ? payload.new! : m))
@@ -306,14 +360,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         setMessages(msgs)
 
         try {
-          const participants = (conversation.participants || []).filter((uid: string) => !profilesCache[uid])
+          const participants = (conversation.participants || []).filter((uid: string) => !profilesCacheRef.current[uid])
           if (participants.length > 0) {
-            const profiles = await getProfiles(participants)
-            setProfilesCache((prev) => {
-              const next = { ...prev }
-              for (const p of profiles) next[p.id] = p
-              return next
-            })
+            await fetchProfiles(participants)
           }
         } catch (e) {
           console.warn('Error prefetching participant profiles', e)
@@ -350,6 +399,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         }
       } catch (error) {
         console.error('Error loading messages:', error)
+        toast.error('Berichten konden niet worden geladen. Probeer het opnieuw.')
       }
     }
 
@@ -518,7 +568,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         role: p?.role,
         is_verified: !!p?.is_verified,
       })
-    const cached = profilesCache[userId]
+    const cached = profilesCacheRef.current[userId]
     if (cached) setFromProfile(cached)
     if (displayName || photoUrl) {
       setProfilePreview({
@@ -532,7 +582,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     }
     getProfile(userId).then((p) => {
       if (p) {
-        setProfilesCache((prev) => ({ ...prev, [userId]: p }))
+        const updated = { ...profilesCacheRef.current, [userId]: p }
+        profilesCacheRef.current = updated
+        setProfilesCache(updated)
         setFromProfile(p)
       }
     })
@@ -584,19 +636,16 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       return
     }
     if (isVideoFile(file)) {
-      const durationError = await checkVideoDuration(file)
-      if (durationError) {
-        toast.error(durationError)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        return
-      }
+      setTrimmerFile(file)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
     }
     setUploading(true)
     try {
       let dataUri: string
       let mediaType: 'image' | 'gif' | 'video'
       if (isVideoFile(file)) {
-        dataUri = await fileToDataUri(file)
+        dataUri = await compressVideo(file)
         mediaType = 'video'
       } else {
         const result = await compressImage(file)
@@ -610,6 +659,70 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleTrimConfirm = async (trimmedFile: File) => {
+    if (!user?.id) return
+    setTrimmerFile(null)
+    setUploading(true)
+    toast.info('Video wordt gecomprimeerd en geüpload...')
+    try {
+      const dataUri = await compressVideo(trimmedFile)
+      const media = await uploadProfileMedia(user.id, dataUri, 'video')
+      setProfileMedia((prev) => [media, ...prev])
+      toast.success('Video geüpload!')
+    } catch (error) {
+      console.error('Error uploading trimmed video:', error)
+      toast.error('Upload mislukt')
+    } finally {
+      setUploading(false)
+      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleTrimCancel = () => {
+    setTrimmerFile(null)
+    if (feedFileInputRef.current) feedFileInputRef.current.value = ''
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleFeedUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user?.id) return
+    const sizeError = checkUploadSize(file)
+    if (sizeError) {
+      toast.error(sizeError)
+      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
+      return
+    }
+    if (isVideoFile(file)) {
+      setTrimmerFile(file)
+      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
+      return
+    }
+    setUploading(true)
+    try {
+      let dataUri: string
+      let mediaType: 'image' | 'gif' | 'video'
+      if (isVideoFile(file)) {
+        dataUri = await compressVideo(file)
+        mediaType = 'video'
+      } else {
+        const result = await compressImage(file)
+        dataUri = result.dataUri
+        mediaType = result.mediaType
+      }
+      const media = await uploadProfileMedia(user.id, dataUri, mediaType)
+      setProfileMedia((prev) => [media, ...prev])
+      toast.success('Media geüpload!')
+    } catch (error) {
+      console.error('Error uploading media:', error)
+      toast.error('Upload mislukt')
+    } finally {
+      setUploading(false)
+      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
     }
   }
 
@@ -753,24 +866,33 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 <p className="text-xs text-muted mt-1">Start a new chat to begin</p>
               </div>
             ) : (
-              <div className="space-y-0.5">
-                {conversations.map((conv) => {
-                  const preview = getConversationPreview(conv)
-                  const isSelected = selectedConvId === conv.id
-                  const isGroup = conv.is_group
+              <>
+                {(() => {
+                  const visibleConvs = conversations.filter((c) => !hiddenConversations.has(c.id))
+                  const hiddenConvs = conversations.filter((c) => hiddenConversations.has(c.id))
                   return (
-                    <div key={conv.id} className="relative">
-                      {isSelected && (
-                        <motion.div
-                          layoutId="sidebarIndicator"
-                          className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-gradient-accent"
-                          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        />
-                      )}
-                    <button
-                      onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
-                      className={`sidebar-item ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
-                    >
+                    <div className="space-y-0.5">
+                      {visibleConvs.map((conv) => {
+                        const preview = getConversationPreview(conv)
+                        const isSelected = selectedConvId === conv.id
+                        const isGroup = conv.is_group
+                        return (
+                          <div key={conv.id} className="relative">
+                            {isSelected && (
+                              <motion.div
+                                layoutId="sidebarIndicator"
+                                className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-gradient-accent"
+                                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                              />
+                            )}
+                          <button
+                            onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              setContextMenu({ x: e.clientX, y: e.clientY, convId: conv.id })
+                            }}
+                            className={`sidebar-item ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                          >
                       <div className="relative shrink-0">
                         <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${
                           isGroup
@@ -812,7 +934,99 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                     </div>
                   )
                 })}
-              </div>
+                      {hiddenConvs.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => setShowHidden(!showHidden)}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-muted hover:text-primary hover:bg-surface-hover transition-all"
+                          >
+                            <svg className={`w-3 h-3 transition-transform ${showHidden ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            {showHidden ? 'Verberg onzichtbare' : `${hiddenConvs.length} verborgen chat${hiddenConvs.length > 1 ? 's' : ''}`}
+                          </button>
+                          <AnimatePresence>
+                            {showHidden && hiddenConvs.map((conv) => {
+                              const preview = getConversationPreview(conv)
+                              const isSelected = selectedConvId === conv.id
+                              const isGroup = conv.is_group
+                              return (
+                                <motion.div
+                                  key={conv.id}
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="relative overflow-hidden"
+                                >
+                                  {isSelected && (
+                                    <motion.div
+                                      layoutId="sidebarIndicator"
+                                      className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-gradient-accent"
+                                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                                    />
+                                  )}
+                                  <button
+                                    onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault()
+                                      setContextMenu({ x: e.clientX, y: e.clientY, convId: conv.id })
+                                    }}
+                                    className={`sidebar-item opacity-60 ${isSelected ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                                  >
+                                    <div className="relative shrink-0">
+                                      <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${
+                                        isGroup
+                                          ? 'bg-gradient-to-br from-amber-400 to-orange-400 text-white'
+                                          : isSelected
+                                            ? 'bg-gradient-accent text-white shadow-sm'
+                                            : 'bg-surface-hover text-secondary'
+                                      }`}>
+                                        {isGroup ? (
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                          </svg>
+                                        ) : preview.photo_url ? (
+                                          <img src={preview.photo_url} alt="" className="h-full w-full object-cover" />
+                                        ) : (
+                                          getAvatarInitials(preview.display_name)
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1">
+                                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-primary' : ''}`}>
+                                          {preview.display_name}
+                                        </p>
+                                        {!isGroup && preview.is_verified && <VerifiedBadge className="w-3 h-3" />}
+                                      </div>
+                                      <p className="text-[11px] text-muted">
+                                        {isGroup ? 'Group' : 'Direct message'}
+                                      </p>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        toggleHideConversation(conv.id)
+                                      }}
+                                      className="shrink-0 p-1 rounded-md hover:bg-surface-hover text-muted hover:text-primary transition-colors"
+                                      title="Tonen"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                      </svg>
+                                    </button>
+                                  </button>
+                                </motion.div>
+                              )
+                            })}
+                          </AnimatePresence>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
+              </>
             )}
           </div>
         )}
@@ -881,6 +1095,31 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           </div>
         </div>
       </aside>
+
+      {/* Context menu for hiding conversations */}
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            className="fixed z-50 bg-surface border border-border rounded-xl shadow-lg py-1 min-w-[160px]"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => toggleHideConversation(contextMenu.convId)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-surface-hover transition-colors"
+            >
+              <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+              </svg>
+              {hiddenConversations.has(contextMenu.convId) ? 'Weer tonen' : 'Verbergen'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ===== MAIN CONTENT ===== */}
       <main className="flex-1 flex flex-col min-w-0 bg-body relative z-10">
@@ -1054,40 +1293,107 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         {activeTab === 'feed' && (
           <div className="flex-1 flex flex-col min-h-0 bg-body">
             {/* Feed header with scroll mode toggle */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-surface-glass backdrop-blur-sm shrink-0">
+            <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-border/50 bg-surface-glass backdrop-blur-sm shrink-0">
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
                 <span className="text-xs font-semibold text-primary">Feed</span>
               </div>
-              <button
-                onClick={() => setFeedScrollMode(!feedScrollMode)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                  feedScrollMode ? 'bg-accent text-accent-content' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
-                }`}
-              >
-                {feedScrollMode ? (
-                  <>
+              <div className="flex items-center gap-2">
+                {/* Upload tijdelijk uitgeschakeld */}
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-muted cursor-not-allowed opacity-50">
+                  Upload (binnenkort terug)
+                </span>
+                {/* Sort dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowSortMenu(!showSortMenu) }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-surface-muted text-secondary hover:bg-surface-hover transition-all"
+                  >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                     </svg>
-                    Grid
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Scroll
-                  </>
-                )}
-              </button>
+                    {feedSort === 'newest' && 'Nieuwste'}
+                    {feedSort === 'popular' && 'Populairst'}
+                    {feedSort === 'most_commented' && 'Meeste reacties'}
+                  </button>
+                  <AnimatePresence>
+                    {showSortMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-xl shadow-lg py-1 min-w-[160px] z-50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {[
+                          { key: 'newest' as const, label: 'Nieuwste', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+                          { key: 'popular' as const, label: 'Populairst', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+                          { key: 'most_commented' as const, label: 'Meeste reacties', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.key}
+                            onClick={() => { setFeedSort(opt.key); setShowSortMenu(false) }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                              feedSort === opt.key ? 'text-accent bg-accent/5' : 'text-primary hover:bg-surface-muted'
+                            }`}
+                          >
+                            <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={opt.icon} />
+                            </svg>
+                            {opt.label}
+                            {feedSort === opt.key && (
+                              <svg className="w-3.5 h-3.5 text-accent ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                {/* Scroll mode toggle */}
+                <button
+                  onClick={() => setFeedScrollMode(!feedScrollMode)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                    feedScrollMode ? 'bg-accent text-accent-content' : 'bg-surface-muted text-secondary hover:bg-surface-hover'
+                  }`}
+                >
+                  {feedScrollMode ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                      </svg>
+                      Grid
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Scroll
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {feedScrollMode ? (
               <MediaFeedScroll
-                media={feedMedia}
+                media={(() => {
+                  const sorted = [...feedMedia]
+                  if (feedSort === 'popular') {
+                    sorted.sort((a, b) => ((b.likes || []).length) - ((a.likes || []).length))
+                  } else if (feedSort === 'most_commented') {
+                    sorted.sort((a, b) => ((b.comments || []).length) - ((a.comments || []).length))
+                  } else {
+                    sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  }
+                  return sorted
+                })()}
                 profilesCache={profilesCache}
                 currentUserId={user?.id || ''}
                 onMediaUpdate={setFeedMedia}
@@ -1112,7 +1418,11 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   </motion.div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {feedMedia.map((media, index) => {
+                    {[...feedMedia].sort((a, b) => {
+                      if (feedSort === 'popular') return ((b.likes || []).length) - ((a.likes || []).length)
+                      if (feedSort === 'most_commented') return ((b.comments || []).length) - ((a.comments || []).length)
+                      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                    }).map((media, index) => {
                       const author = profilesCache[media.user_id]
                       const authorName = author?.display_name || 'User'
                       const likes: string[] = (media.likes || []) as string[]
@@ -1821,40 +2131,12 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 </div>
               ) : (
                 <div>
-                  {/* Upload button (own profile only) */}
+                  {/* Upload button (own profile only) — tijdelijk uitgeschakeld */}
                   {profilePreview.isCurrentUser && (
                     <div className="mb-4">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,.gif,video/*"
-                        onChange={handleUploadMedia}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="w-full py-2.5 rounded-xl border-2 border-dashed border-border hover:border-accent/50 text-secondary hover:text-accent text-xs font-medium transition-all flex items-center justify-center gap-2"
-                      >
-                        {uploading ? (
-                          <>
-                            <motion.div
-                              className="h-4 w-4 border-2 border-accent/30 border-t-accent rounded-full"
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                            />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Upload photo/GIF/video
-                          </>
-                        )}
-                      </button>
-                      <p className="text-[10px] text-muted mt-1.5 text-center">Max 5 MB. Videos max 5 seconden.</p>
+                      <p className="text-xs text-muted text-center py-2.5 rounded-xl border border-dashed border-border">
+                        Uploaden is tijdelijk uitgeschakeld
+                      </p>
                     </div>
                   )}
 
@@ -1911,6 +2193,17 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             reportedUserId={reportModal.reportedUserId}
             reportedPostId={reportModal.reportedPostId}
             onClose={() => setReportModal(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Video Trimmer Modal */}
+      <AnimatePresence>
+        {trimmerFile && (
+          <VideoTrimmer
+            file={trimmerFile}
+            onConfirm={handleTrimConfirm}
+            onCancel={handleTrimCancel}
           />
         )}
       </AnimatePresence>

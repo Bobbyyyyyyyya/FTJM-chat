@@ -77,6 +77,6 @@ export interface ProfileMedia {
   id: string;
   user_id: string;
   media_url: string;
-  media_type: 'image' | 'gif';
+  media_type: 'image' | 'gif' | 'video';
   created_at: string;
 }
