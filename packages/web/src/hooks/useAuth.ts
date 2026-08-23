@@ -3,6 +3,28 @@ import { User } from '@ftjm/shared'
 import { supabase } from '@/lib/supabase'
 import { authLimiter, enforceRateLimit } from '@/lib/rateLimiter'
 
+const AUTH_TIMEOUT_MS = 10000
+const REALTIME_TIMEOUT_MS = 5000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timeout`)), ms)
+    ),
+  ])
+}
+
+function clearStaleSession() {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    if (supabaseUrl) {
+      const storageKey = `sb-${supabaseUrl.replace(/^https?:\/\//, '').replace(/[^a-zA-Z0-9]/g, '')}-auth-token`
+      localStorage.removeItem(storageKey)
+    }
+  } catch {}
+}
+
 export interface BanInfo {
   isBlocked: boolean
   bannedUntil: string | null
@@ -137,16 +159,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, loading: false, bannedInfo: macBan })
         return
       }
-      const { data, error } = await supabase.auth.getSession()
+      const { data, error } = await withTimeout(
+        supabase.auth.getSession(),
+        AUTH_TIMEOUT_MS,
+        'getSession'
+      )
       if (error) {
         console.warn('[Auth] getSession error, clearing stale session:', error.message)
-        await supabase.auth.signOut()
+        clearStaleSession()
         set({ user: null, loading: false })
         return
       }
       if (data.session?.user?.id) {
         try {
-          await supabase.realtime.setAuth(data.session.access_token)
+          await withTimeout(
+            supabase.realtime.setAuth(data.session.access_token),
+            REALTIME_TIMEOUT_MS,
+            'setRealtimeAuth'
+          )
         } catch (e) {
           console.warn('[Auth] setRealtimeAuth failed:', e)
         }
@@ -158,7 +188,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (profileError) throw profileError
         const banned = parseAdminNotes(profile)
         if (banned) {
-          await supabase.auth.signOut()
+          clearStaleSession()
           set({ user: null, pendingUser: null, loading: false, bannedInfo: banned })
           return
         }
@@ -172,6 +202,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error) {
       console.error('Auth check error:', error)
+      clearStaleSession()
       set({ user: null, loading: false })
     }
   },
@@ -191,13 +222,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, pendingUser: null, loading: false, bannedInfo: macBan })
         return
       }
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: pendingUser.email,
-        password,
-      })
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: pendingUser.email, password }),
+        AUTH_TIMEOUT_MS,
+        'signInWithPassword'
+      )
       if (error) throw error
       try {
-        await supabase.realtime.setAuth(data.session?.access_token)
+        await withTimeout(
+          supabase.realtime.setAuth(data.session?.access_token),
+          REALTIME_TIMEOUT_MS,
+          'setRealtimeAuth'
+        )
       } catch (e) {
         console.warn('[Auth] setRealtimeAuth failed after unlock:', e)
       }
@@ -208,7 +244,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single()
       const banned = parseAdminNotes(profile)
       if (banned) {
-        await supabase.auth.signOut()
+        clearStaleSession()
         set({ user: null, pendingUser: null, loading: false, bannedInfo: banned })
         return
       }
@@ -242,10 +278,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ loading: false, bannedInfo: macBan })
         return
       }
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        AUTH_TIMEOUT_MS,
+        'signInWithPassword'
+      )
       if (error) throw error
       try {
-        await supabase.realtime.setAuth(data.session?.access_token)
+        await withTimeout(
+          supabase.realtime.setAuth(data.session?.access_token),
+          REALTIME_TIMEOUT_MS,
+          'setRealtimeAuth'
+        )
       } catch (e) {
         console.warn('[Auth] setRealtimeAuth failed after login:', e)
       }
@@ -256,14 +300,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single()
       const banned = parseAdminNotes(profile)
       if (banned) {
-        await supabase.auth.signOut()
+        clearStaleSession()
         set({ user: null, pendingUser: null, loading: false, bannedInfo: banned })
         return
       }
       set({ user: profile, loading: false })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error)
       set({ loading: false })
+      if (error?.message?.includes('timeout')) {
+        throw new Error('Kan geen verbinding maken met de server. Probeer het later opnieuw.')
+      }
       throw error
     }
   },
@@ -281,10 +328,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ loading: false, bannedInfo: macBan })
         return
       }
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({ email, password }),
+        AUTH_TIMEOUT_MS,
+        'signUp'
+      )
       if (error) throw error
       try {
-        await supabase.realtime.setAuth(data.session?.access_token)
+        await withTimeout(
+          supabase.realtime.setAuth(data.session?.access_token),
+          REALTIME_TIMEOUT_MS,
+          'setRealtimeAuth'
+        )
       } catch (e) {
         console.warn('[Auth] setRealtimeAuth failed after signup:', e)
       }
@@ -302,12 +357,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    const { error } = await supabase.auth.signOut()
+    clearStaleSession()
     try {
-      await supabase.realtime.setAuth()
-    } catch (e) {
-      console.warn('[Auth] Failed to clear realtime auth token on logout:', e)
-    }
+      await supabase.auth.signOut()
+    } catch {}
+    try {
+      await withTimeout(
+        supabase.realtime.setAuth(),
+        REALTIME_TIMEOUT_MS,
+        'setRealtimeAuth'
+      )
+    } catch {}
     set({ user: null, pendingUser: null, loading: false, bannedInfo: null })
   },
 

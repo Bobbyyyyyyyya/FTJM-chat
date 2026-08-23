@@ -238,6 +238,34 @@ export async function compressVideo(file: File): Promise<string> {
   return done
 }
 
+const IMGBB_API_KEY = '2bf9d28be5cac96584c79cc585100e4a'
+const IMGBB_UPLOAD_URL = 'https://api.imgbb.com/1/upload'
+
+export async function uploadToImgBb(dataUri: string): Promise<string> {
+  const base64Data = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri
+
+  const formData = new FormData()
+  formData.append('key', IMGBB_API_KEY)
+  formData.append('image', base64Data)
+
+  const response = await fetch(IMGBB_UPLOAD_URL, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    throw new Error(`ImgBB upload failed: ${response.status}`)
+  }
+
+  const result = await response.json()
+
+  if (!result.success) {
+    throw new Error(result.error?.message || 'ImgBB upload failed')
+  }
+
+  return result.data.url
+}
+
 export function playSound(url: string) {
   try {
     const audio = new Audio(url)

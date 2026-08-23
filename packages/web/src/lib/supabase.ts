@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import { egressLimiter } from './rateLimiter'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -24,15 +23,28 @@ function getAccessToken(): string {
   }
 }
 
-const originalFetch = window.fetch.bind(window)
-window.fetch = async (...args) => {
-  if (!egressLimiter.tryAcquire('egress-global')) {
-    console.warn('⚠️ Egress rate limit reached, allowing request anyway')
-  }
-  return originalFetch(...args)
+const REQUEST_TIMEOUT_MS = 10000
+
+function timedFetch(url: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, controller.signal])
+    : controller.signal
+
+  return fetch(url, { ...init, signal }).finally(() => clearTimeout(timer))
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: true,
+    detectSessionInUrl: false,
+    flowType: 'pkce',
+  },
+  global: {
+    fetch: timedFetch,
+  },
   realtime: {
     params: {
       eventsPerSecond: 10,

@@ -44,7 +44,7 @@ import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard
 import SettingsContent, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsContent'
 import GamesArcade from '@/components/GamesArcade'
 import { isCallSignal } from '@/lib/db'
-import { compressImage, compressVideo, checkUploadSize, checkVideoDuration, isVideoFile, fileToDataUri } from '@/lib/storage'
+import { compressImage, compressVideo, checkUploadSize, checkVideoDuration, isVideoFile, fileToDataUri, uploadToImgBb } from '@/lib/storage'
 import { getDefaultMessageTone } from '@/lib/default-sounds'
 import MediaFeedScroll from '@/components/MediaFeedScroll'
 import VideoTrimmer from '@/components/VideoTrimmer'
@@ -57,19 +57,31 @@ const MAX_MESSAGE_LENGTH = 5000
 const MESSAGE_COLLAPSE_LENGTH = 500
 const HEAVY_RENDER_THRESHOLD = 2000
 
+const IMGBB_URL_REGEX = /https?:\/\/(i\.ibb\.co|imgbb\.com)\/[^\s]+/g
+
+function stripImgBbUrls(text: string): string {
+  return text.replace(IMGBB_URL_REGEX, '').trim()
+}
+
 function MessageContent({ text, isMine, isExpanded, onToggle }: { text: string; isMine: boolean; isExpanded: boolean; onToggle: () => void }) {
   const isLong = text.length > MESSAGE_COLLAPSE_LENGTH
   const displayText = isLong && !isExpanded ? text.slice(0, MESSAGE_COLLAPSE_LENGTH) : text
   const shouldSkipHeavy = text.length > HEAVY_RENDER_THRESHOLD
 
+  const visibleText = stripImgBbUrls(displayText)
+  const hasImage = IMGBB_URL_REGEX.test(displayText)
+  IMGBB_URL_REGEX.lastIndex = 0
+
   return (
     <>
-      <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
-        <LinkifyText text={displayText} />
-        {isLong && !isExpanded && (
-          <span className="text-muted">...</span>
-        )}
-      </div>
+      {visibleText && (
+        <div className={`whitespace-pre-line break-words text-sm leading-relaxed ${isMine ? 'text-white' : 'text-primary'}`}>
+          <LinkifyText text={visibleText} />
+          {isLong && !isExpanded && (
+            <span className="text-muted">...</span>
+          )}
+        </div>
+      )}
       {!shouldSkipHeavy && <DataUriMedia text={displayText} />}
       {!shouldSkipHeavy && <MessageEmbeds text={displayText} />}
       {isLong && (
@@ -159,6 +171,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const feedFileInputRef = useRef<HTMLInputElement>(null)
+  const chatImageInputRef = useRef<HTMLInputElement>(null)
+  const [pendingImage, setPendingImage] = useState<{ dataUri: string; uploading: boolean; url?: string } | null>(null)
   const [feedScrollMode, setFeedScrollMode] = useState(false)
   const [feedSort, setFeedSort] = useState<'newest' | 'popular' | 'most_commented'>('newest')
   const [showSortMenu, setShowSortMenu] = useState(false)
@@ -424,6 +438,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       const newMessage = await sendMessage(selectedConvId, user.id, encryptedText, true)
       setMessages((prev) => [...prev, newMessage])
       setMessageInput('')
+      setPendingImage(null)
       setIsTyping(false)
       setTypingStatus(selectedConvId, user.id, false).catch(() => {})
     } catch (error: any) {
@@ -446,6 +461,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       const newPost = await createPost(user.id, encryptedContent, replyingTo?.id)
       setGeneralChat((prev) => [newPost, ...prev])
       setMessageInput('')
+      setPendingImage(null)
       setReplyingTo(null)
     } catch (error: any) {
       console.error('Error sending post:', error)
@@ -652,7 +668,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         dataUri = result.dataUri
         mediaType = result.mediaType
       }
-      const media = await uploadProfileMedia(user.id, dataUri, mediaType)
+      const mediaUrl = await uploadToImgBb(dataUri)
+      const media = await uploadProfileMedia(user.id, mediaUrl, mediaType)
       setProfileMedia((prev) => [media, ...prev])
     } catch (error) {
       console.error('Error uploading media:', error)
@@ -669,7 +686,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     toast.info('Video wordt gecomprimeerd en geüpload...')
     try {
       const dataUri = await compressVideo(trimmedFile)
-      const media = await uploadProfileMedia(user.id, dataUri, 'video')
+      const mediaUrl = await uploadToImgBb(dataUri)
+      const media = await uploadProfileMedia(user.id, mediaUrl, 'video')
       setProfileMedia((prev) => [media, ...prev])
       toast.success('Video geüpload!')
     } catch (error) {
@@ -714,7 +732,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         dataUri = result.dataUri
         mediaType = result.mediaType
       }
-      const media = await uploadProfileMedia(user.id, dataUri, mediaType)
+      const mediaUrl = await uploadToImgBb(dataUri)
+      const media = await uploadProfileMedia(user.id, mediaUrl, mediaType)
       setProfileMedia((prev) => [media, ...prev])
       toast.success('Media geüpload!')
     } catch (error) {
@@ -724,6 +743,31 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       setUploading(false)
       if (feedFileInputRef.current) feedFileInputRef.current.value = ''
     }
+  }
+
+  const handleChatImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const sizeError = checkUploadSize(file)
+    if (sizeError) { toast.error(sizeError); return }
+    setPendingImage({ dataUri: '', uploading: true, url: '' })
+    try {
+      let dataUri: string
+      if (isVideoFile(file)) {
+        dataUri = await compressVideo(file)
+      } else {
+        const result = await compressImage(file)
+        dataUri = result.dataUri
+      }
+      const url = await uploadToImgBb(dataUri)
+      setMessageInput((prev) => prev ? `${prev}\n${url}` : url)
+      setPendingImage(null)
+    } catch (err) {
+      console.error('Image upload error:', err)
+      toast.error('Foto uploaden mislukt')
+      setPendingImage(null)
+    }
+    if (chatImageInputRef.current) chatImageInputRef.current.value = ''
   }
 
   const handleDeleteMedia = async (mediaId: string) => {
@@ -1955,7 +1999,23 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               </motion.div>
             )}
           </AnimatePresence>
+          <input ref={chatImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleChatImageSelect} />
+          {pendingImage?.uploading && (
+            <div className="max-w-3xl mx-auto mb-3">
+              <div className="h-8 w-8 rounded-lg bg-surface-muted border border-border flex items-center justify-center">
+                <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            </div>
+          )}
           <div className="flex gap-3 max-w-3xl mx-auto items-end">
+            <button onClick={() => chatImageInputRef.current?.click()}
+              disabled={(activeTab === 'dm' && !selectedConvId) || pendingImage?.uploading}
+              className="p-2.5 rounded-xl bg-surface-muted text-secondary hover:text-accent hover:bg-surface-hover disabled:opacity-40 transition-all shrink-0"
+              title="Upload photo">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
             <div className="flex-1 relative">
               <input
                 type="text"
@@ -1977,7 +2037,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             </div>
             <button
               onClick={activeTab === 'dm' ? handleSendMessage : handleSendPost}
-              disabled={(activeTab === 'dm' && !selectedConvId) || !messageInput.trim() || messageInput.length > MAX_MESSAGE_LENGTH}
+              disabled={(activeTab === 'dm' && !selectedConvId) || !messageInput.trim() || pendingImage?.uploading || messageInput.length > MAX_MESSAGE_LENGTH}
               className="btn-send"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
