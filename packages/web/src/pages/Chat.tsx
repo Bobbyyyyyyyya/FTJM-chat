@@ -8,9 +8,7 @@ import {
   sendMessage,
   updateMessage,
   deleteMessage,
-  createConversation,
   setTypingStatus,
-  getTypingStatus,
   getPosts,
   createPost,
   updatePost,
@@ -41,10 +39,10 @@ import {
 } from '@/lib/db'
 import { encryptText, maybeDecryptText } from '@/lib/crypto'
 import { MessageEmbeds, LinkifyText, DataUriMedia } from '@/components/EmbedCard'
-import SettingsContent, { applyCustomTheme, clearCustomTheme } from '@/components/SettingsContent'
+import SettingsContent, { applyCustomTheme } from '@/components/SettingsContent'
 import GamesArcade from '@/components/GamesArcade'
 import { isCallSignal } from '@/lib/db'
-import { compressImage, compressVideo, checkUploadSize, checkVideoDuration, isVideoFile, fileToDataUri, uploadToImgBb } from '@/lib/storage'
+import { compressImage, compressVideo, checkUploadSize, isVideoFile, uploadToImgBb } from '@/lib/storage'
 import { getDefaultMessageTone } from '@/lib/default-sounds'
 import MediaFeedScroll from '@/components/MediaFeedScroll'
 import VideoTrimmer from '@/components/VideoTrimmer'
@@ -52,6 +50,9 @@ import type { ChatTab, ProfileMedia as ProfileMediaType } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 import ReportModal from '@/components/ReportModal'
 import VerifiedBadge from '@/components/VerifiedBadge'
+import Sidebar from '@/components/Sidebar'
+import CachedImg from '@/components/CachedImg'
+import useCachedUrl from '@/hooks/useCachedUrl'
 
 const MAX_MESSAGE_LENGTH = 5000
 const MESSAGE_COLLAPSE_LENGTH = 500
@@ -69,7 +70,6 @@ function MessageContent({ text, isMine, isExpanded, onToggle }: { text: string; 
   const shouldSkipHeavy = text.length > HEAVY_RENDER_THRESHOLD
 
   const visibleText = stripImgBbUrls(displayText)
-  const hasImage = IMGBB_URL_REGEX.test(displayText)
   IMGBB_URL_REGEX.lastIndex = 0
 
   return (
@@ -151,6 +151,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [replyingTo, setReplyingTo] = useState<Post | null>(null)
   const [sending, setSending] = useState(false)
   const [myProfile, setMyProfile] = useState<any>(null)
+  const notifSettingsRef = useRef<any>({})
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
 
   // Social state
@@ -161,7 +162,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   const [followingCount, setFollowingCount] = useState(0)
   const [uploading, setUploading] = useState(false)
   const [profilePreviewTab, setProfilePreviewTab] = useState<'info' | 'media'>('info')
-  const [showMoreMenu, setShowMoreMenu] = useState(false)
+
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({})
   const [reportModal, setReportModal] = useState<{
@@ -186,6 +187,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       return new Set()
     }
   })
+
+  const cachedBannerUrl = useCachedUrl(profilePreview?.banner_url)
   const [showHidden, setShowHidden] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; convId: string } | null>(null)
   const [trimmerFile, setTrimmerFile] = useState<File | null>(null)
@@ -261,6 +264,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     getProfile(user.id).then((p) => {
       if (!p) return
       setMyProfile(p)
+      notifSettingsRef.current = p.notification_settings || {}
       if (p.use_custom_theme && p.custom_theme) {
         const merged = { ...p.custom_theme as any }
         applyCustomTheme(merged)
@@ -317,15 +321,21 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     }
   }, [])
 
-  // Load feed when user is available
+  // Load feed only when feed tab is opened
+  const feedLoaded = useRef(false)
+  const followingIdsCache = useRef<string[] | null>(null)
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id || activeTab !== 'feed' || feedLoaded.current) return
+    feedLoaded.current = true
     loadFeed()
-  }, [user?.id])
+  }, [user?.id, activeTab])
 
   const loadFeed = async () => {
     if (!user?.id) return
     try {
+      if (!followingIdsCache.current) {
+        followingIdsCache.current = await getFollowingIds(user.id)
+      }
       const media = await getFeedMedia(user.id)
       setFeedMedia(media)
     } catch (error) {
@@ -333,14 +343,17 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     }
   }
 
-  // Subscribe to feed updates
+  // Subscribe to feed updates — only when feed tab is opened
+  const feedSubRef = useRef<any>(null)
   useEffect(() => {
-    if (!user?.id) return
-    let sub: any = null
+    if (!user?.id || activeTab !== 'feed' || feedSubRef.current) return
     let mounted = true
-    getFollowingIds(user.id).then((ids) => {
+    const start = async () => {
+      if (!followingIdsCache.current) {
+        followingIdsCache.current = await getFollowingIds(user.id)
+      }
       if (!mounted) return
-      sub = subscribeToFeed(ids, (payload) => {
+      feedSubRef.current = subscribeToFeed(followingIdsCache.current, (payload) => {
         if (payload.type === 'INSERT' && payload.new) {
           setFeedMedia((prev) => [payload.new!, ...prev])
           const name = profilesCacheRef.current[payload.new!.user_id]?.display_name || 'Someone'
@@ -351,12 +364,14 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
           setFeedMedia((prev) => prev.filter((m) => m.id !== payload.old!.id))
         }
       })
-    })
+    }
+    start()
     return () => {
       mounted = false
-      sub?.unsubscribe()
+      feedSubRef.current?.unsubscribe()
+      feedSubRef.current = null
     }
-  }, [user?.id])
+  }, [user?.id, activeTab])
 
   useEffect(() => {
     if (!selectedConvId || !user?.id) return
@@ -642,43 +657,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     }
   }
 
-  const handleUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !user?.id) return
-    const sizeError = checkUploadSize(file)
-    if (sizeError) {
-      toast.error(sizeError)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      return
-    }
-    if (isVideoFile(file)) {
-      setTrimmerFile(file)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      return
-    }
-    setUploading(true)
-    try {
-      let dataUri: string
-      let mediaType: 'image' | 'gif' | 'video'
-      if (isVideoFile(file)) {
-        dataUri = await compressVideo(file)
-        mediaType = 'video'
-      } else {
-        const result = await compressImage(file)
-        dataUri = result.dataUri
-        mediaType = result.mediaType
-      }
-      const mediaUrl = await uploadToImgBb(dataUri)
-      const media = await uploadProfileMedia(user.id, mediaUrl, mediaType)
-      setProfileMedia((prev) => [media, ...prev])
-    } catch (error) {
-      console.error('Error uploading media:', error)
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
   const handleTrimConfirm = async (trimmedFile: File) => {
     if (!user?.id) return
     setTrimmerFile(null)
@@ -704,45 +682,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     setTrimmerFile(null)
     if (feedFileInputRef.current) feedFileInputRef.current.value = ''
     if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const handleFeedUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !user?.id) return
-    const sizeError = checkUploadSize(file)
-    if (sizeError) {
-      toast.error(sizeError)
-      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
-      return
-    }
-    if (isVideoFile(file)) {
-      setTrimmerFile(file)
-      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
-      return
-    }
-    setUploading(true)
-    try {
-      let dataUri: string
-      let mediaType: 'image' | 'gif' | 'video'
-      if (isVideoFile(file)) {
-        dataUri = await compressVideo(file)
-        mediaType = 'video'
-      } else {
-        const result = await compressImage(file)
-        dataUri = result.dataUri
-        mediaType = result.mediaType
-      }
-      const mediaUrl = await uploadToImgBb(dataUri)
-      const media = await uploadProfileMedia(user.id, mediaUrl, mediaType)
-      setProfileMedia((prev) => [media, ...prev])
-      toast.success('Media geüpload!')
-    } catch (error) {
-      console.error('Error uploading media:', error)
-      toast.error('Upload mislukt')
-    } finally {
-      setUploading(false)
-      if (feedFileInputRef.current) feedFileInputRef.current.value = ''
-    }
   }
 
   const handleChatImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -781,7 +720,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }
 
   function playNotificationSound(type: 'dm' | 'post') {
-    const ns = (myProfile?.notification_settings || {}) as any
+    const ns = notifSettingsRef.current as any
     if (ns.enable_sounds === false) return
     let url = type === 'dm' ? ns.message_sound : ns.post_sound
     if (!url) url = getDefaultMessageTone()
@@ -794,7 +733,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }
 
   function sendDesktopNotification(title: string, body: string, type: 'dm' | 'post') {
-    const ns = (myProfile?.notification_settings || {}) as any
+    const ns = notifSettingsRef.current as any
     if (type === 'dm' && ns.notify_new_messages === false) return
     if (type === 'post' && ns.notify_new_posts === false) return
     playNotificationSound(type)
@@ -855,50 +794,34 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
 
   return (
     <div className="h-screen flex bg-body relative z-10">
-      {/* ===== SIDEBAR (always visible) ===== */}
-      <aside className="w-64 flex flex-col shrink-0 bg-surface border-r border-border">
-        {/* Brand */}
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-[#0f172a] flex items-center justify-center shadow-sm overflow-hidden">
-              <svg viewBox="0 0 512 512" className="h-5 w-5">
-                <defs>
-                  <linearGradient id="chatAccent" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#2dd4bf"/>
-                    <stop offset="100%" stopColor="#38bdf8"/>
-                  </linearGradient>
-                  <linearGradient id="chatFg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ffffff"/>
-                    <stop offset="100%" stopColor="#cbd5e1"/>
-                  </linearGradient>
-                  <linearGradient id="chatBar" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#2dd4bf"/>
-                    <stop offset="50%" stopColor="#38bdf8"/>
-                    <stop offset="100%" stopColor="#2dd4bf"/>
-                  </linearGradient>
-                </defs>
-                <rect x="0" y="0" width="512" height="512" rx="96" fill="#0f172a"/>
-                <rect x="6" y="6" width="500" height="500" rx="90" fill="none" stroke="url(#chatAccent)" strokeWidth="2" opacity="0.15"/>
-                <ellipse cx="256" cy="220" rx="160" ry="140" fill="url(#chatAccent)" opacity="0.08"/>
-                <g transform="translate(256,248)">
-                  <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10 L64 40 L-6 40 L-6 108 L-50 108 Z" fill="url(#chatFg)"/>
-                  <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10 L64 40 L-6 40 L-6 108 L-50 108 Z" fill="url(#chatAccent)" opacity="0.25" transform="translate(3,3)"/>
-                  <path d="M-50-100 L80-100 L80-48 L-6-48 L-6-10 L64-10" fill="none" stroke="url(#chatAccent)" strokeWidth="3" opacity="0.5" strokeLinecap="round"/>
-                </g>
-                <rect x="172" y="388" width="168" height="5" rx="2.5" fill="url(#chatBar)"/>
-                <rect x="172" y="394" width="168" height="5" rx="2.5" fill="url(#chatBar)" opacity="0.3"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-primary tracking-tight">FTJM</h1>
-              <p className="text-[10px] text-muted leading-tight">Secure messaging</p>
-            </div>
-          </div>
-        </div>
+      {/* ===== SIDEBAR (Discord-style icon strip) ===== */}
+      <Sidebar
+        user={user}
+        theme={theme}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        setSelectedConvId={setSelectedConvId}
+        conversations={conversations}
+        hiddenConversations={hiddenConversations}
+        showHidden={showHidden}
+        setShowHidden={setShowHidden}
+        selectedConvId={selectedConvId}
+        getConversationPreview={getConversationPreview}
+        getAvatarInitials={getAvatarInitials}
+        onlineUsers={onlineUsers}
+        toggleTheme={toggleTheme}
+        lockApp={lockApp}
+        logout={logout}
+        profilesCache={profilesCache}
+      />
 
-        {/* Conversation list */}
-        {activeTab === 'dm' && (
-          <div className="flex-1 overflow-y-auto px-3 pb-3">
+      {/* ===== CONVERSATION LIST PANEL (shown when DM tab is active) ===== */}
+      {activeTab === 'dm' && (
+        <div className="w-72 flex flex-col shrink-0 bg-surface border-r border-border">
+          <div className="px-4 pt-4 pb-3">
+            <h2 className="text-sm font-bold text-primary">Messages</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 pb-2">
             {conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center mb-3 border border-border/50">
@@ -912,8 +835,24 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             ) : (
               <>
                 {(() => {
-                  const visibleConvs = conversations.filter((c) => !hiddenConversations.has(c.id))
-                  const hiddenConvs = conversations.filter((c) => hiddenConversations.has(c.id))
+                  const visibleConvs = conversations.filter((c) => {
+                    if (hiddenConversations.has(c.id)) return false
+                    if (!c.is_group) {
+                      const otherId = c.participants.find((id: string) => id !== user?.id) || ''
+                      const otherProfile = profilesCache[otherId]
+                      if (otherProfile?.is_blocked) return false
+                    }
+                    return true
+                  })
+                  const hiddenConvs = conversations.filter((c) => {
+                    if (!hiddenConversations.has(c.id)) return false
+                    if (!c.is_group) {
+                      const otherId = c.participants.find((id: string) => id !== user?.id) || ''
+                      const otherProfile = profilesCache[otherId]
+                      if (otherProfile?.is_blocked) return false
+                    }
+                    return true
+                  })
                   return (
                     <div className="space-y-0.5">
                       {visibleConvs.map((conv) => {
@@ -924,7 +863,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                           <div key={conv.id} className="relative">
                             {isSelected && (
                               <motion.div
-                                layoutId="sidebarIndicator"
+                                layoutId="convIndicator"
                                 className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-gradient-accent"
                                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                               />
@@ -950,7 +889,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                           ) : preview.photo_url ? (
-                            <img src={preview.photo_url} alt="" className="h-full w-full object-cover" />
+                            <CachedImg src={preview.photo_url} alt="" className="h-full w-full object-cover" />
                           ) : (
                             getAvatarInitials(preview.display_name)
                           )}
@@ -1003,13 +942,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                   transition={{ duration: 0.15 }}
                                   className="relative overflow-hidden"
                                 >
-                                  {isSelected && (
-                                    <motion.div
-                                      layoutId="sidebarIndicator"
-                                      className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 rounded-full bg-gradient-accent"
-                                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                                    />
-                                  )}
                                   <button
                                     onClick={() => { setSelectedConvId(conv.id); setActiveTab('dm') }}
                                     onContextMenu={(e) => {
@@ -1031,7 +963,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                                           </svg>
                                         ) : preview.photo_url ? (
-                                          <img src={preview.photo_url} alt="" className="h-full w-full object-cover" />
+                            <CachedImg src={preview.photo_url} alt="" className="h-full w-full object-cover" />
                                         ) : (
                                           getAvatarInitials(preview.display_name)
                                         )}
@@ -1073,72 +1005,8 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               </>
             )}
           </div>
-        )}
-
-        {/* Bottom user area */}
-        <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-muted">
-            <div className="h-8 w-8 rounded-full bg-gradient-accent flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-              {user?.photo_url ? (
-                <img src={user.photo_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                getAvatarInitials(user?.display_name || 'U')
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1">
-                <p className="text-xs font-semibold text-primary truncate">{user?.display_name}</p>
-                {user?.is_verified && <VerifiedBadge className="w-3 h-3" />}
-              </div>
-              <p className="text-[10px] text-muted">Online</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={toggleTheme}
-                className="h-7 w-7 rounded-lg hover:bg-surface-hover flex items-center justify-center transition-all"
-                aria-label="Toggle theme"
-              >
-                {theme === 'light' ? (
-                  <svg className="w-3.5 h-3.5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className="h-7 w-7 rounded-lg hover:bg-surface-hover flex items-center justify-center transition-all"
-                aria-label="Settings"
-              >
-                <svg className="w-3.5 h-3.5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                </svg>
-              </button>
-              <button
-                onClick={lockApp}
-                className="h-7 w-7 rounded-lg hover:bg-surface-hover flex items-center justify-center transition-all"
-                aria-label="Lock"
-              >
-                <svg className="w-3.5 h-3.5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </button>
-              <button
-                onClick={logout}
-                className="h-7 w-7 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center justify-center transition-all"
-                aria-label="Logout"
-              >
-                <svg className="w-3.5 h-3.5 text-secondary hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            </div>
-          </div>
         </div>
-      </aside>
+      )}
 
       {/* Context menu for hiding conversations */}
       <AnimatePresence>
@@ -1169,80 +1037,6 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       <main className="flex-1 flex flex-col min-w-0 bg-body relative z-10">
         {/* Chat header */}
         <div className="bg-surface-glass backdrop-blur-sm border-b border-border px-4 py-2.5 flex items-center gap-4 shrink-0 min-h-[57px]">
-          {/* Nav tabs */}
-          <div className="flex gap-1 bg-surface-muted rounded-lg p-0.5 shrink-0">
-            <button
-              onClick={() => { setActiveTab('general'); setSelectedConvId(null) }}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                activeTab === 'general' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
-              }`}
-            >
-              General
-            </button>
-            <button
-              onClick={() => setActiveTab('dm')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                activeTab === 'dm' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
-              }`}
-            >
-              Messages
-            </button>
-            <button
-              onClick={() => { setActiveTab('feed'); setSelectedConvId(null) }}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all inline-flex items-center gap-1.5 ${
-                activeTab === 'feed' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              Feed
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all inline-flex items-center gap-1.5 ${
-                  activeTab === 'settings' || activeTab === 'games' ? 'bg-surface text-primary shadow-sm' : 'text-secondary hover:text-primary'
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                </svg>
-                More
-              </button>
-              {showMoreMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
-                  <div className="absolute top-full left-0 mt-1 w-36 bg-surface border border-border rounded-lg shadow-lg z-50 py-1">
-                    <button
-                      onClick={() => { setActiveTab('settings'); setShowMoreMenu(false) }}
-                      className={`w-full px-3 py-2 text-xs font-medium text-left flex items-center gap-2 transition-all ${
-                        activeTab === 'settings' ? 'bg-surface-muted text-primary' : 'text-secondary hover:text-primary hover:bg-surface-muted'
-                      }`}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      </svg>
-                      Settings
-                    </button>
-                    <button
-                      onClick={() => { setActiveTab('games'); setSelectedConvId(null); setShowMoreMenu(false) }}
-                      className={`w-full px-3 py-2 text-xs font-medium text-left flex items-center gap-2 transition-all ${
-                        activeTab === 'games' ? 'bg-surface-muted text-primary' : 'text-secondary hover:text-primary hover:bg-surface-muted'
-                      }`}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Games
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
         {activeTab !== 'settings' && activeTab !== 'games' && activeTab !== 'feed' && (
             <>
           <div className="w-px h-6 bg-border shrink-0" />
@@ -1267,7 +1061,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-primary font-medium truncate">
                       {(Array.isArray(selectedConversation.participant_names) ? selectedConversation.participant_names : [])
-                        .filter((name, idx) => (Array.isArray(selectedConversation.participants) ? selectedConversation.participants : [])[idx] !== user?.id)
+                        .filter((_, idx) => (Array.isArray(selectedConversation.participants) ? selectedConversation.participants : [])[idx] !== user?.id)
                         .join(', ')}
                     </p>
                     {!selectedConversation.is_group && (
@@ -1493,13 +1287,13 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                 muted
                               />
                             ) : (
-                              <img src={media.media_url} alt="" className="w-full h-full object-cover" />
+                              <CachedImg src={media.media_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                             )}
                             <div className="absolute top-3 left-3 flex items-center gap-2">
                               <button onClick={() => openProfile(media.user_id, authorName, author?.photo_url)}
                                 className="h-7 w-7 rounded-full overflow-hidden bg-black/30 flex items-center justify-center text-[9px] font-bold text-white shrink-0 backdrop-blur-sm">
                                 {author?.photo_url ? (
-                                  <img src={author.photo_url} alt={authorName} className="h-full w-full object-cover" />
+                                  <CachedImg src={author.photo_url} alt={authorName} className="h-full w-full object-cover" />
                                 ) : authorName.charAt(0).toUpperCase()}
                               </button>
                               <span className="text-xs font-semibold text-white drop-shadow-sm flex items-center gap-1">
@@ -1573,7 +1367,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                     <div
                                       className="h-6 w-6 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[7px] font-bold text-secondary shrink-0 mt-0.5">
                                       {commentPhoto ? (
-                                        <img src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
+                                        <CachedImg src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
                                       ) : commentName.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -1676,7 +1470,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                         <button onClick={() => openProfile(msg.sender_id, participant.display_name, participant.photo_url)}
                           className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
                           {participant.photo_url ? (
-                            <img src={participant.photo_url} alt={participant.display_name} className="h-full w-full object-cover" />
+                            <CachedImg src={participant.photo_url} alt={participant.display_name} className="h-full w-full object-cover" />
                           ) : getAvatarInitials(participant.display_name)}
                         </button>
                       )}
@@ -1768,7 +1562,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                         <button onClick={() => openProfile(msg.sender_id, user?.display_name ?? undefined, user?.photo_url ?? undefined)}
                           className="h-8 w-8 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[10px] font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
                           {user?.photo_url ? (
-                            <img src={user.photo_url} alt={user.display_name ?? ''} className="h-full w-full object-cover" />
+                            <CachedImg src={user.photo_url} alt={user.display_name ?? ''} className="h-full w-full object-cover" />
                           ) : getAvatarInitials(user?.display_name || 'You')}
                         </button>
                       )}
@@ -1846,7 +1640,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                         <button onClick={() => openProfile(post.author_id, authorName, authorInfo.photo_url)}
                           className="h-9 w-9 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-xs font-bold text-secondary shrink-0 hover:ring-2 hover:ring-accent transition-all">
                           {authorInfo.photo_url ? (
-                            <img src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
+                            <CachedImg src={authorInfo.photo_url} alt={authorName} className="h-full w-full object-cover" />
                           ) : getAvatarInitials(authorName)}
                         </button>
                         <div className="flex-1">
@@ -2066,7 +1860,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
             className="w-full max-w-sm bg-surface rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/50 border border-border overflow-hidden max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Banner */}
             {profilePreview.banner_url ? (
-              <div className="h-36 bg-cover bg-center shrink-0" style={{ backgroundImage: `url(${profilePreview.banner_url})` }} />
+              <div className="h-36 bg-cover bg-center shrink-0" style={{ backgroundImage: `url(${cachedBannerUrl || profilePreview.banner_url})` }} />
             ) : (
               <div className="h-36 bg-gradient-accent shrink-0" />
             )}
@@ -2083,7 +1877,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
               <div className="flex items-end gap-4">
                 <div className="h-20 w-20 rounded-full overflow-hidden bg-gradient-accent flex items-center justify-center text-3xl font-bold text-white shadow-lg ring-4 ring-surface shrink-0">
                   {profilePreview.photo_url ? (
-                    <img src={profilePreview.photo_url} alt={profilePreview.display_name} className="h-full w-full object-cover" />
+                    <CachedImg src={profilePreview.photo_url} alt={profilePreview.display_name} className="h-full w-full object-cover" />
                   ) : getAvatarInitials(profilePreview.display_name)}
                 </div>
                 <div className="pb-1 flex-1 min-w-0">
@@ -2217,7 +2011,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                               preload="metadata"
                             />
                           ) : (
-                            <img src={media.media_url} alt="" className="w-full h-full object-cover" />
+                            <CachedImg src={media.media_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                           )}
                           {profilePreview.isCurrentUser && (
                             <button

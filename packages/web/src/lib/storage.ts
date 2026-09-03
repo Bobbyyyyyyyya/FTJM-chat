@@ -9,38 +9,6 @@ export function checkUploadSize(file: File): string | null {
   return null
 }
 
-export function getVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(video.src)
-      resolve(video.duration)
-    }
-    video.onerror = () => {
-      URL.revokeObjectURL(video.src)
-      reject(new Error('Could not load video'))
-    }
-    video.src = URL.createObjectURL(file)
-  })
-}
-
-export function checkVideoDuration(file: File): Promise<string | null> {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith('video/')) {
-      resolve(null)
-      return
-    }
-    getVideoDuration(file).then((duration) => {
-      if (duration > MAX_VIDEO_DURATION) {
-        resolve(`Video is te lang (max ${MAX_VIDEO_DURATION} seconden)`)
-      } else {
-        resolve(null)
-      }
-    }).catch(() => resolve(null))
-  })
-}
-
 export function isVideoFile(file: File): boolean {
   return file.type.startsWith('video/')
 }
@@ -59,8 +27,6 @@ export async function trimVideo(
   startTime: number,
   endTime: number
 ): Promise<File> {
-  const duration = endTime - startTime
-
   const video = document.createElement('video')
   video.muted = true
   video.preload = 'auto'
@@ -83,7 +49,6 @@ export async function trimVideo(
   const ctx = canvas.getContext('2d')!
 
   const stream = canvas.captureStream(30)
-  const videoTrack = stream.getVideoTracks()[0]
   const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
     ? 'video/webm;codecs=vp9'
     : 'video/webm'
@@ -238,7 +203,7 @@ export async function compressVideo(file: File): Promise<string> {
   return done
 }
 
-const IMGBB_API_KEY = '2bf9d28be5cac96584c79cc585100e4a'
+const IMGBB_API_KEY = import.meta.env.VITE_IMGBB_API_KEY || ''
 const IMGBB_UPLOAD_URL = 'https://api.imgbb.com/1/upload'
 
 export async function uploadToImgBb(dataUri: string): Promise<string> {
@@ -263,7 +228,7 @@ export async function uploadToImgBb(dataUri: string): Promise<string> {
     throw new Error(result.error?.message || 'ImgBB upload failed')
   }
 
-  return result.data.url
+  return result.data.display_url || result.data.url
 }
 
 export function playSound(url: string) {

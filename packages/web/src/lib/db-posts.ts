@@ -28,22 +28,6 @@ export async function getPosts(limit = 50) {
   return data as Post[]
 }
 
-// Get posts by author
-export async function getPostsByAuthor(authorId: string) {
-  const { data, error } = await supabase
-    .from('posts')
-    .select('*')
-    .eq('author_id', authorId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    console.error('❌ Error fetching posts by author:', error)
-    throw error
-  }
-
-  return data as Post[]
-}
-
 // Create a new post in general chat
 export async function createPost(
   authorId: string,

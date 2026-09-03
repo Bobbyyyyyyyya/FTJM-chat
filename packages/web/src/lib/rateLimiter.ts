@@ -66,10 +66,7 @@ export function enforceRateLimit(limiter: RateLimiter, key: string, label: strin
 export const authLimiter = new RateLimiter(5, 60_000)        // 5 per minuut
 export const messageLimiter = new RateLimiter(30, 60_000)     // 30 per minuut
 export const postLimiter = new RateLimiter(40, 60_000)        // 40 per minuut
-export const forumThreadLimiter = new RateLimiter(3, 60_000)  // 3 per minuut
-export const forumCommentLimiter = new RateLimiter(15, 60_000)// 15 per minuut
 export const reportLimiter = new RateLimiter(3, 3600_000)     // 3 per uur
 export const typingLimiter = new RateLimiter(30, 60_000)      // 30 per minuut
 export const socialLimiter = new RateLimiter(10, 60_000)      // 10 per minuut
 export const uploadLimiter = new RateLimiter(5, 3600_000)     // 5 per uur
-export const egressLimiter = new RateLimiter(60, 60_000)      // 60 requests per minuut

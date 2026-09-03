@@ -2,11 +2,8 @@
 export * from './db-conversations'
 export * from './db-posts'
 export * from './db-profiles'
-export * from './db-forum'
 export * from './db-social'
 export * from './db-reports'
-
-import { supabase } from './supabase'
 
 /**
  * RLS Policy Reference (for developers)
@@ -80,52 +77,3 @@ import { supabase } from './supabase'
  *   - INSERT: public (if email NOT NULL)
  *   - DELETE: public
  */
-
-// Re-export main client
-export { supabase }
-
-// Type-safe RLS check helpers
-export async function checkCanAccessConversation(
-  conversationId: string,
-  userId: string
-) {
-  try {
-    const { data } = await supabase
-      .from('conversations')
-      .select('participants')
-      .eq('id', conversationId)
-      .single()
-
-    return data?.participants?.includes(userId) ?? false
-  } catch {
-    return false
-  }
-}
-
-export async function checkCanEditProfile(userId: string, currentUserId: string) {
-  return userId === currentUserId
-}
-
-export async function checkCanEditPost(
-  postId: string,
-  currentUserId: string
-) {
-  try {
-    const { data } = await supabase
-      .from('posts')
-      .select('author_id')
-      .eq('id', postId)
-      .single()
-
-    return data?.author_id === currentUserId
-  } catch {
-    return false
-  }
-}
-
-export async function checkCanSendMessage(
-  conversationId: string,
-  userId: string
-) {
-  return checkCanAccessConversation(conversationId, userId)
-}

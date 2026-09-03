@@ -41,7 +41,8 @@ const BAN_EXPIRY_DAYS = 3650
 
 function setCookie(name: string, value: string, days: number) {
   const expires = new Date(Date.now() + days * 86400000).toUTCString()
-  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict`
+  const secure = window.location.protocol === 'https:' ? ';Secure' : ''
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict${secure}`
 }
 
 function getCookie(name: string): string | null {

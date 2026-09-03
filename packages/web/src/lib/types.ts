@@ -59,33 +59,6 @@ export interface Post {
 }
 
 // ============================================================================
-// FORUM (PUBLIC - Everyone sees)
-// ============================================================================
-
-export interface ForumThread {
-  id: string
-  title: string
-  content: string
-  author_id: string
-  category?: string
-  is_pinned: boolean
-  is_locked: boolean
-  reply_count: number
-  last_reply_at?: string
-  created_at: string
-  updated_at: string
-}
-
-export interface ForumComment {
-  id: string
-  thread_id: string
-  content: string
-  author_id: string
-  created_at: string
-  updated_at: string
-}
-
-// ============================================================================
 // DIRECT MESSAGING (PRIVATE - Only participants)
 // ============================================================================
 
@@ -154,13 +127,6 @@ export interface Report {
   updated_at: string
 }
 
-export interface Whitelist {
-  id: string
-  email: string
-  added_by?: string // Who added this email
-  created_at: string
-}
-
 // ============================================================================
 // SETTINGS (ADMIN ONLY)
 // ============================================================================
@@ -207,72 +173,6 @@ export interface ProfileMedia {
 
 export type ChatTab = 'dm' | 'general' | 'feed' | 'forum' | 'settings' | 'games'
 
-export interface ChatMessage {
-  id: string
-  sender_id: string
-  sender_name: string
-  sender_photo?: string
-  text: string
-  timestamp: string
-  is_own: boolean // For UI convenience
-}
-
-export interface ChatState {
-  activeTab: ChatTab
-  selectedConvId: string | null
-  messages: Message[]
-  typingUsers: string[]
-  isLoading: boolean
-  error?: string
-}
-
-export interface ProfileUpdate {
-  display_name?: string
-  bio?: string
-  photo_url?: string
-  thema?: 'dark' | 'light'
-  notification_settings?: {
-    sound?: boolean
-    desktop?: boolean
-  }
-}
-
-// ============================================================================
-// API RESPONSES
-// ============================================================================
-
-export interface ApiResponse<T> {
-  data: T | null
-  error: string | null
-  success: boolean
-}
-
-export interface PaginatedResponse<T> {
-  data: T[]
-  count: number
-  total: number
-  page: number
-  pageSize: number
-}
-
-// ============================================================================
-// RLS PERMISSION CHECKS
-// ============================================================================
-
-export interface PermissionCheck {
-  canRead: boolean
-  canCreate: boolean
-  canUpdate: boolean
-  canDelete: boolean
-}
-
-export interface ConversationPermissions {
-  canRead: boolean
-  canSendMessage: boolean
-  canDeleteMessage: boolean
-  canSeeTyping: boolean
-}
-
 // ============================================================================
 // REAL-TIME EVENTS
 // ============================================================================
@@ -288,38 +188,9 @@ export interface RealtimePayload<T> {
   commit_timestamp: string
 }
 
-export interface SubscriptionCallbacks<T> {
-  onInsert?: (data: T) => void
-  onUpdate?: (data: T) => void
-  onDelete?: (data: T) => void
-  onError?: (error: Error) => void
-}
-
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-
-export const ROLES = {
-  USER: 'user',
-  MOD: 'mod',
-  ADMIN: 'admin',
-} as const
-
-export const NOTIFICATION_TYPES = {
-  MENTION: 'mention',
-  REPLY: 'reply',
-  SYSTEM: 'system',
-  DM: 'dm',
-  FOLLOW: 'follow',
-  UPLOAD_MEDIA: 'upload_media',
-} as const
-
-export const REPORT_STATUS = {
-  OPEN: 'open',
-  INVESTIGATING: 'investigating',
-  RESOLVED: 'resolved',
-  DISMISSED: 'dismissed',
-} as const
 
 export const REPORT_REASONS = [
   'spam',
@@ -328,13 +199,3 @@ export const REPORT_REASONS = [
   'abuse',
   'other',
 ] as const
-
-export const THEMES = {
-  DARK: 'dark',
-  LIGHT: 'light',
-} as const
-
-export type Theme = typeof THEMES[keyof typeof THEMES]
-export type Role = typeof ROLES[keyof typeof ROLES]
-export type ReportStatus = typeof REPORT_STATUS[keyof typeof REPORT_STATUS]
-export type ReportReason = typeof REPORT_REASONS[number]

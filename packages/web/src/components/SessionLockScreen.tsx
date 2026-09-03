@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
 import { useAuthStore } from '@/hooks/useAuth'
+import CachedImg from '@/components/CachedImg'
 
 function FloatingOrb({ delay, size, x, y, duration }: { delay: number; size: number; x: number; y: number; duration: number }) {
   return (
@@ -216,7 +217,7 @@ export default function SessionLockScreen() {
                     border: '1px solid rgba(59,130,246,0.3)',
                   }}>
                   {pendingUser?.photo_url ? (
-                    <img
+                    <CachedImg
                       src={pendingUser.photo_url}
                       alt={pendingUser.display_name || ''}
                       className="h-14 w-14 rounded-xl object-cover"

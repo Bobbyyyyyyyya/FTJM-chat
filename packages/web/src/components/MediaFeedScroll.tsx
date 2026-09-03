@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { ProfileMedia } from '@/lib/types'
 import { likeMedia, unlikeMedia, addComment, deleteComment } from '@/lib/db-social'
+import CachedImg from '@/components/CachedImg'
 
 interface MediaFeedScrollProps {
   media: ProfileMedia[]
@@ -182,7 +183,7 @@ export default function MediaFeedScroll({ media, profilesCache, currentUserId, o
                   preload="metadata"
                 />
               ) : (
-                <img
+                <CachedImg
                   src={mediaItem.media_url}
                   alt=""
                   className="max-h-full max-w-full object-contain"
@@ -214,7 +215,7 @@ export default function MediaFeedScroll({ media, profilesCache, currentUserId, o
                   className="h-10 w-10 rounded-full overflow-hidden bg-black/30 flex items-center justify-center text-sm font-bold text-white shrink-0 backdrop-blur-sm ring-2 ring-white/20"
                 >
                   {author?.photo_url ? (
-                    <img src={author.photo_url} alt={authorName} className="h-full w-full object-cover" />
+                    <CachedImg src={author.photo_url} alt={authorName} className="h-full w-full object-cover" />
                   ) : authorName.charAt(0).toUpperCase()}
                 </button>
                 <div>
@@ -307,7 +308,7 @@ export default function MediaFeedScroll({ media, profilesCache, currentUserId, o
                           <div key={c.id} className="flex gap-2 items-start">
                             <div className="h-7 w-7 rounded-full overflow-hidden bg-surface-hover flex items-center justify-center text-[8px] font-bold text-secondary shrink-0">
                               {commentPhoto ? (
-                                <img src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
+                                <CachedImg src={commentPhoto} alt={commentName} className="h-full w-full object-cover" />
                               ) : commentName.charAt(0).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">

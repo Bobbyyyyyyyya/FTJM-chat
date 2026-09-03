@@ -9,6 +9,7 @@ import {
   shell,
   safeStorage,
   desktopCapturer,
+  session,
 } from 'electron'
 import pkg from 'electron-updater'
 import https from 'https'
@@ -16,7 +17,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync } from 'fs'
-import { isMacBanned, BANNED_MACS } from './banned-macs.js'
+import { isMacBanned } from './banned-macs.js'
 
 const { autoUpdater } = pkg
 
@@ -105,6 +106,15 @@ const createWindow = () => {
   })
 }
 
+function setupSecurityHeaders() {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = details.responseHeaders || {}
+    responseHeaders['X-Frame-Options'] = ['DENY']
+    responseHeaders['Content-Security-Policy'] = ["img-src 'self' data: blob: https: http:; media-src 'self' data: blob: https: http:; connect-src 'self' https://i.ibb.co https://i.imgur.com https://image2url.com https://www.image2url.com https://*.supabase.co https://api.imgbb.com https://*.googleusercontent.com https://*.gstatic.com https://img.youtube.com https://i.ytimg.com wss://lahoorkdcopypnubnosl.supabase.co; frame-ancestors 'none';"]
+    callback({ responseHeaders })
+  })
+}
+
 function showWindow() {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
@@ -142,6 +152,7 @@ function createTray() {
 }
 
 app.on('ready', () => {
+  setupSecurityHeaders()
   createWindow()
   createTray()
   // Show a silent notification on first launch to trigger macOS permission prompt

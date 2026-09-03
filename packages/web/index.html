@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' %VITE_SUPABASE_URL% https://api.imgbb.com wss:;"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; media-src 'self' data: blob: https: http:; connect-src 'self' %VITE_SUPABASE_URL% https://api.imgbb.com https://i.ibb.co https://i.imgur.com https://image2url.com https://www.image2url.com https://*.supabase.co https://*.googleusercontent.com https://*.gstatic.com https://img.youtube.com https://i.ytimg.com wss://lahoorkdcopypnubnosl.supabase.co; form-action 'self'; base-uri 'self';"
     />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>FTJM Chat</title>
   </head>

@@ -66,7 +66,7 @@ function App() {
 
   // Handle notification click → focus window
   useEffect(() => {
-    const cleanup = (window as any).electron?.onNotificationClicked?.((data: any) => {
+    const cleanup = (window as any).electron?.onNotificationClicked?.(() => {
       if ((window as any).electron?.showWindow) {
         (window as any).electron.showWindow()
       }

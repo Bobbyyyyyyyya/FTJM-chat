@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'motion/react'
+import CachedImg from '@/components/CachedImg'
 import type { User } from '@ftjm/shared'
 
 function FloatingOrb({ delay, size, x, y, duration }: { delay: number; size: number; x: number; y: number; duration: number }) {
@@ -116,6 +117,15 @@ export default function LoginPage() {
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)
 
+  const getPasswordStrength = (pw: string): { valid: boolean; errors: string[] } => {
+    const errors: string[] = []
+    if (pw.length < 8) errors.push('Minimaal 8 tekens')
+    if (!/[A-Z]/.test(pw)) errors.push('Minimaal 1 hoofdletter')
+    if (!/[a-z]/.test(pw)) errors.push('Minimaal 1 kleine letter')
+    if (!/[0-9]/.test(pw)) errors.push('Minimaal 1 cijfer')
+    return { valid: errors.length === 0, errors }
+  }
+
   const isPiracyName = (name: string): boolean => {
     const n = name.toLowerCase().replace(/[^a-z0-9]/g, '')
     const blocked = [
@@ -189,6 +199,12 @@ export default function LoginPage() {
       if (isSignup) {
         if (isPiracyName(displayName)) {
           setShowPiracyWarning(true)
+          setIsLoading(false)
+          return
+        }
+        const pwCheck = getPasswordStrength(password)
+        if (!pwCheck.valid) {
+          setError(pwCheck.errors.join('. '))
           setIsLoading(false)
           return
         }
@@ -451,7 +467,7 @@ export default function LoginPage() {
                 ) : profilePreview ? (
                   <>
                     {profilePreview.photo_url ? (
-                      <img src={profilePreview.photo_url} alt="" className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-blue-500/30" />
+                      <CachedImg src={profilePreview.photo_url} alt="" className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-blue-500/30" />
                     ) : (
                       <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 ring-2 ring-blue-500/30"
                         style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
@@ -524,6 +540,21 @@ export default function LoginPage() {
                     required
                   />
                 </div>
+                {isSignup && password.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {[
+                      { label: 'Minimaal 8 tekens', test: password.length >= 8 },
+                      { label: '1 hoofdletter', test: /[A-Z]/.test(password) },
+                      { label: '1 kleine letter', test: /[a-z]/.test(password) },
+                      { label: '1 cijfer', test: /[0-9]/.test(password) },
+                    ].map(({ label, test }) => (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${test ? 'bg-green-400' : 'bg-blue-300/30'}`} />
+                        <span className={`text-[10px] ${test ? 'text-green-400' : 'text-blue-300/40'}`}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

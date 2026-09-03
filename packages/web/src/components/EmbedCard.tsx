@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
 import { fetchEmbed, extractUrls, extractArcadeScores, type EmbedData, type ArcadeScoreShare } from '@/lib/embeds'
+import CachedImg from '@/components/CachedImg'
 
 const DATA_URI_REGEX = /data:(image|audio|video)\/[a-z0-9+.-]+;base64,[A-Za-z0-9+/=_-]+/gi
 const DATA_URI_ANY = /data:[a-z0-9+.-]+\/[a-z0-9+.-]+;base64,[A-Za-z0-9+/=_-]+/gi
@@ -98,7 +99,7 @@ function SingleEmbed({ url }: { url: string }) {
       <div className="mt-3 rounded-2xl overflow-hidden border border-border bg-surface shadow-sm max-w-lg">
         <a href={url} target="_blank" rel="noopener noreferrer" className="block group">
           <div className="relative aspect-video bg-black">
-            <img src={embed.thumbnail} alt={embed.title} className="w-full h-full object-cover" loading="lazy" />
+            <CachedImg src={embed.thumbnail} alt={embed.title} className="w-full h-full object-cover" loading="lazy" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="h-12 w-12 rounded-full bg-black/70 flex items-center justify-center group-hover:bg-black/90 transition-colors">
                 <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
@@ -121,7 +122,7 @@ function SingleEmbed({ url }: { url: string }) {
   if (embed.type === 'image') {
     return (
       <a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 block max-w-lg">
-        <img src={url} alt="Image" className="max-w-full rounded-xl max-h-96 object-contain bg-surface-muted border border-border" loading="lazy" />
+        <CachedImg src={url} alt="Image" referrerPolicy="no-referrer" className="max-w-full rounded-xl max-h-96 object-contain bg-surface-muted border border-border" loading="lazy" />
       </a>
     )
   }

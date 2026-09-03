@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import CachedImg from '@/components/CachedImg'
 import {
   Phone,
   PhoneOff,
@@ -173,7 +174,7 @@ export default function VoiceCallUI({
             >
               <div className="w-full h-full rounded-full overflow-hidden bg-neutral-900 flex items-center justify-center">
                 {activeCall.callerAvatar ? (
-                  <img src={activeCall.callerAvatar} alt="" className="w-full h-full object-cover" />
+                  <CachedImg src={activeCall.callerAvatar} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-3xl font-light tracking-wide text-white">
                     {activeCall.callerName.slice(0, 2).toUpperCase()}
@@ -292,7 +293,7 @@ export default function VoiceCallUI({
               {!pipActive && isConnected && (activeCall.isVideo || isRemoteScreenSharing) && remoteStream && remoteStream.getVideoTracks().length > 0 ? (
                 <video ref={compactVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
               ) : activeCall.callerAvatar ? (
-                <img src={activeCall.callerAvatar} alt="" className="w-full h-full object-cover" />
+                <CachedImg src={activeCall.callerAvatar} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-xs font-semibold text-white">
                   {activeCall.callerName.slice(0, 2).toUpperCase()}

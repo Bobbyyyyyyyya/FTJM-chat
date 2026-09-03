@@ -181,7 +181,7 @@ export default function StarBlaster({ onBack }: { onBack: () => void }) {
         b.x >= shipRef.current && b.x <= shipRef.current + SHIP_WIDTH &&
         b.y >= HEIGHT - 47 && b.y <= HEIGHT - 27
       ) {
-        setEnemyBullets((prev) => [])
+        setEnemyBullets([])
         setLives((prev) => {
           const nl = prev - 1
           if (nl <= 0) {

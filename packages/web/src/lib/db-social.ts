@@ -299,37 +299,6 @@ export async function getFeedMedia(userId: string, limit = 50, offset = 0): Prom
 // REALTIME SUBSCRIPTIONS
 // ============================================================================
 
-export function subscribeToProfileMedia(
-  userId: string,
-  callback: (payload: { type: 'INSERT' | 'UPDATE' | 'DELETE'; new?: ProfileMedia; old?: ProfileMedia }) => void
-) {
-  const existing = supabase.getChannels().find((ch) => ch.topic === 'realtime:profile-media-changes')
-  if (existing) {
-    supabase.removeChannel(existing)
-  }
-
-  const channel = supabase
-    .channel('profile-media-changes')
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'profile_media', filter: `user_id=eq.${userId}` },
-      (payload: any) => callback({ type: 'INSERT', new: payload.new as ProfileMedia })
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'profile_media', filter: `user_id=eq.${userId}` },
-      (payload: any) => callback({ type: 'UPDATE', new: payload.new as ProfileMedia, old: payload.old as ProfileMedia })
-    )
-    .on(
-      'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'profile_media', filter: `user_id=eq.${userId}` },
-      (payload: any) => callback({ type: 'DELETE', old: payload.old as ProfileMedia })
-    )
-    .subscribe()
-
-  return channel
-}
-
 export function subscribeToFeed(
   followingIds: string[],
   callback: (payload: { type: 'INSERT' | 'UPDATE' | 'DELETE'; new?: ProfileMedia; old?: ProfileMedia }) => void

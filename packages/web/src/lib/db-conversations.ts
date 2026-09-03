@@ -80,35 +80,6 @@ export async function getConversation(conversationId: string) {
   }
 }
 
-// Create a new DM conversation (1-on-1 or group)
-export async function createConversation(
-  participants: string[],
-  participantNames: string[],
-  participantPhotos: string[],
-  createdBy: string,
-  title?: string
-) {
-  const { data, error } = await supabase
-    .from('conversations')
-    .insert({
-      title,
-      is_group: participants.length > 2,
-      participants,
-      participant_names: participantNames,
-      participant_photos: participantPhotos,
-      created_by: createdBy,
-    })
-    .select()
-    .single()
-
-  if (error) {
-    console.error('❌ Error creating conversation:', error)
-    throw error
-  }
-
-  return data as Conversation
-}
-
 // Send a message in a conversation
 export async function sendMessage(
   conversationId: string,
