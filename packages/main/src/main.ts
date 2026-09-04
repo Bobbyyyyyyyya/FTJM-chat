@@ -439,6 +439,25 @@ const template: any = [
     ],
   },
   {
+    label: 'View',
+    submenu: [
+      {
+        label: 'Reload',
+        accelerator: 'CmdOrCtrl+R',
+        click: (_item: any, focusedWindow: any) => {
+          focusedWindow?.reload()
+        },
+      },
+      {
+        label: 'Toggle Developer Tools',
+        accelerator: 'CmdOrCtrl+Shift+I',
+        click: (_item: any, focusedWindow: any) => {
+          focusedWindow?.webContents.toggleDevTools()
+        },
+      },
+    ],
+  },
+  {
     label: 'Help',
     submenu: [
       {
