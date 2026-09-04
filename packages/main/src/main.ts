@@ -30,6 +30,15 @@ const isMac = process.platform === 'darwin'
 
 const isDev = !app.isPackaged
 
+// Never touch the macOS login keychain: Chromium reads its OSCrypt password
+// eagerly at startup, which prompts on ad-hoc signed builds (no stable
+// identity to grant access to). The mock keeps passwords in memory only.
+// The app needs no persisted OS-level secrets (Supabase sessions live in
+// Local Storage, cookies are blocked), so this is safe. Verified: with this
+// switch there are zero keychain_password calls; without it, there is one on
+// every launch. Must be set before app.ready.
+app.commandLine.appendSwitch('use-mock-keychain')
+
 let mainWindow: BrowserWindow | null
 let tray: Tray | null
 let loadRetryCount = 0
