@@ -129,6 +129,34 @@ function parseAdminNotes(profile: Record<string, unknown> | null): BanInfo | nul
   return null
 }
 
+// Self-healing login: if the auth user has no row in public.profiles (e.g.
+// created before the trigger existed, or the row was deleted), the login
+// would otherwise bounce back to the login screen silently. RLS allows
+// authenticated users to insert their own row, so create it on the fly.
+// Returns the profile, or throws a visible error if creation also fails.
+async function ensureProfile(userId: string, email: string): Promise<any> {
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
+  if (existing) return existing as Record<string, unknown>
+  console.warn('[Auth] No profile row after login, creating one for', userId)
+  const { data: created, error: createError } = await supabase
+    .from('profiles')
+    .insert([{
+      id: userId,
+      email,
+      display_name: (email.split('@')[0] || 'User').slice(0, 50),
+    }])
+    .select()
+    .single()
+  if (createError || !created) {
+    throw new Error('Inloggen gelukt, maar je profiel ontbreekt en kon niet worden aangemaakt. Probeer het later opnieuw.')
+  }
+  return created as Record<string, unknown>
+}
+
 interface AuthState {
   user: User | null
   pendingUser: User | null
@@ -181,12 +209,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (e) {
           console.warn('[Auth] setRealtimeAuth failed:', e)
         }
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .single()
-        if (profileError) throw profileError
+        const profile = await ensureProfile(
+          data.session.user.id,
+          data.session.user.email || ''
+        )
         const banned = parseAdminNotes(profile)
         if (banned) {
           clearStaleSession()
@@ -294,11 +320,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch (e) {
         console.warn('[Auth] setRealtimeAuth failed after login:', e)
       }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single()
+      const profile = await ensureProfile(data.user.id, email)
       const banned = parseAdminNotes(profile)
       if (banned) {
         clearStaleSession()
