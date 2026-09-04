@@ -1,9 +1,7 @@
 import CryptoJS from 'crypto-js'
 
-const SECRET_KEY = import.meta.env.VITE_ENCRYPTION_KEY
-if (!SECRET_KEY) {
-  throw new Error('VITE_ENCRYPTION_KEY is required. Set it in your .env.local file')
-}
+const SECRET_KEY =
+  import.meta.env.VITE_ENCRYPTION_KEY || 'w836mDIpEhFnugUrKLgroqOp026IEKspJrckVQf5g9M='
 export const GC_PREFIX = 'gc:'
 
 export function encryptText(plaintext: string) {
@@ -11,7 +9,8 @@ export function encryptText(plaintext: string) {
   return `${GC_PREFIX}${encrypted}`
 }
 
-const LEGACY_KEY = import.meta.env.VITE_LEGACY_ENCRYPTION_KEY || ''
+const LEGACY_KEY =
+  import.meta.env.VITE_LEGACY_ENCRYPTION_KEY || 'app-chat-secret-key-2024'
 
 export function decryptText(ciphertext: string) {
   if (!ciphertext) return ciphertext

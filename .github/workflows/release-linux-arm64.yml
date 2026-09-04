@@ -17,12 +17,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '22'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install
+        run: npm install
 
       - name: Setup env files
         shell: bash
@@ -43,7 +41,7 @@ jobs:
           platforms: arm64
 
       - name: Build
-        run: pnpm build
+        run: npm run build
 
       - name: Package Linux arm64
         shell: bash

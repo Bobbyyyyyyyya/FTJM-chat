@@ -788,7 +788,18 @@ function SoundPicker({ label, value, onChange, onUpload, library, defaults = [] 
   }, [showPicker])
 
   const hasOptions = defaults.length > 0 || library.length > 0
-  const currentName = defaults.find((d) => d.url === value)?.name || library.find(([, uri]) => uri === value)?.[0] || ''
+  const currentName = (() => {
+    if (!value) return ''
+    const byUrl = defaults.find((d) => d.url === value)?.name
+    if (byUrl) return byUrl
+    const byName = defaults.find((d) => d.name === value)?.name
+    if (byName) return byName
+    const lib = library.find(([, uri]) => uri === value)?.[0]
+    if (lib) return lib
+    if (value.startsWith('data:')) return 'Custom sound'
+    const file = value.split('/').pop()?.split('?')[0] || ''
+    return file ? file.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ') : ''
+  })()
 
   return (
     <div>

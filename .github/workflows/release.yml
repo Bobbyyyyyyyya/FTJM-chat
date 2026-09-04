@@ -29,12 +29,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install
+        run: npm install
 
       - name: Create env file
         shell: bash
@@ -53,7 +51,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
 
       - name: Build
-        run: pnpm build
+        run: npm run build
 
       - name: Import macOS signing cert
         if: matrix.platform == 'mac'

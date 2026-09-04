@@ -16,12 +16,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '22'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install
+        run: npm install
 
       - name: Setup env files
         run: |
@@ -33,7 +31,7 @@ jobs:
           cp .env.local packages/web/.env.local
 
       - name: Type check
-        run: pnpm type-check
+        run: npm run type-check
 
   build:
     runs-on: ubuntu-latest
@@ -44,12 +42,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '22'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install
+        run: npm install
 
       - name: Setup env files
         run: |
@@ -61,4 +57,4 @@ jobs:
           cp .env.local packages/web/.env.local
 
       - name: Build
-        run: pnpm build
+        run: npm run build

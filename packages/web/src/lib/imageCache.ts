@@ -8,9 +8,13 @@ const MAX_ENTRIES = 300
 const ALLOWED_FETCH_HOSTS: { host: string; meta?: boolean }[] = [
   { host: 'i.ibb.co' },
   { host: 'i.imgur.com' },
-  { host: 'image2url.com', meta: true },
+  // NOTE: image2url.com sends no CORS headers, so fetch() can never read it.
+  // It is NOT in this list on purpose - those images load directly via <img>
+  // (allowed by img-src https:).
   { host: 'supabase.co', meta: true },
-  { host: 'googleusercontent.com', meta: true },
+  // googleusercontent.com (Google avatars) is NOT fetched here on purpose:
+  // that CDN rate-limits fetch() and returns 429s, so we let <img> (allowed
+  // by img-src https:) load those directly and rely on the browser's cache.
   { host: 'gstatic.com', meta: true },
   { host: 'img.youtube.com' },
   { host: 'i.ytimg.com' },
@@ -37,7 +41,7 @@ function evictOldest() {
 
 async function doFetchAndCache(url: string): Promise<string> {
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { cache: 'force-cache' })
     if (!res.ok) return url
     const blob = await res.blob()
     const blobUrl = URL.createObjectURL(blob)
