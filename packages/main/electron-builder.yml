@@ -20,6 +20,9 @@ mac:
   category: public.app-category.productivity
   artifactName: "FTJM-Chat-${version}-${arch}.${ext}"
   icon: assets/icon.icns
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
 win:
   target:
     - nsis
