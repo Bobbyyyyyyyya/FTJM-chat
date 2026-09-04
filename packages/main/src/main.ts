@@ -16,7 +16,7 @@ import https from 'https'
 import * as os from 'os'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { isMacBanned } from './banned-macs.js'
 
 const { autoUpdater } = pkg
@@ -107,12 +107,48 @@ const createWindow = () => {
 }
 
 function setupSecurityHeaders() {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+  const { webRequest } = session.defaultSession
+  // The app never uses cookies (no OAuth, no in-app browsing; Supabase
+  // sessions live in Local Storage). Chromium encrypts cookies with OSCrypt,
+  // which on macOS reads the login keychain and triggers repeated access
+  // prompts on ad-hoc signed builds. So: never send or store cookies.
+  webRequest.onBeforeSendHeaders((details, callback) => {
+    const requestHeaders = { ...details.requestHeaders }
+    delete requestHeaders.Cookie
+    delete requestHeaders.cookie
+    callback({ requestHeaders })
+  })
+  webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = details.responseHeaders || {}
     responseHeaders['X-Frame-Options'] = ['DENY']
     responseHeaders['Content-Security-Policy'] = ["img-src 'self' data: blob: https: http:; media-src 'self' data: blob: https: http:; connect-src 'self' https://i.ibb.co https://i.imgur.com https://image2url.com https://www.image2url.com https://*.supabase.co https://api.imgbb.com https://*.googleusercontent.com https://*.gstatic.com https://img.youtube.com https://i.ytimg.com wss://lahoorkdcopypnubnosl.supabase.co; frame-ancestors 'none';"]
+    delete responseHeaders['set-cookie']
+    delete responseHeaders['Set-Cookie']
     callback({ responseHeaders })
   })
+  void clearStaleCookiesOnce()
+}
+
+// One-time migration: remove cookies left behind by older builds (e.g. for
+// google.com / staging domains). Their decryption is what pulls the keychain
+// prompt up. Runs once per userData dir, guarded by a marker file.
+const COOKIE_CLEANUP_MARKER = 'cookie-cleanup-v1.done'
+
+async function clearStaleCookiesOnce() {
+  try {
+    const markerPath = path.join(app.getPath('userData'), COOKIE_CLEANUP_MARKER)
+    if (existsSync(markerPath)) return
+    const ses = session.defaultSession
+    const all = await ses.cookies.get({})
+    for (const c of all) {
+      const rawDomain = c.domain || ''
+      if (!rawDomain || !c.name) continue
+      const domain = rawDomain.startsWith('.') ? rawDomain.slice(1) : rawDomain
+      const url = `http${c.secure ? 's' : ''}://${domain}${c.path || '/'}`
+      await ses.cookies.remove(url, c.name).catch(() => {})
+    }
+    writeFileSync(markerPath, new Date().toISOString(), 'utf-8')
+  } catch {}
 }
 
 function showWindow() {
