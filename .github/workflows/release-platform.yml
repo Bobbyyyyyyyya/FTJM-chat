@@ -66,12 +66,17 @@ jobs:
             exit 0
           fi
           case "${{ inputs.platform }}" in
-            mac)   RX='\.(dmg|zip)$' ;;
-            win)   RX='\.exe$' ;;
-            linux) RX='\.(deb|AppImage)$' ;;
+            mac)   PAT='\.(dmg|zip)$' ;;
+            win)   PAT='\.exe$' ;;
+            linux) PAT='\.(deb|AppImage)$' ;;
           esac
-          gh release view "$TAG" --json assets --jq ".[] | select(.name | test(\"$RX\")) | .name" 2>/dev/null | while IFS= read -r name; do
-            [ -n "$name" ] && gh release delete-asset "$TAG" "$name" --yes || true
+          names="$(gh release view "$TAG" --json assets --jq '.[].name' 2>/dev/null | grep -E "$PAT" || true)"
+          if [ -z "$names" ]; then
+            echo "No stale assets to remove"
+            exit 0
+          fi
+          echo "$names" | while IFS= read -r name; do
+            [ -n "$name" ] && echo "deleting $name" && gh release delete-asset "$TAG" "$name" --yes || true
           done
 
       - name: Import macOS signing cert
