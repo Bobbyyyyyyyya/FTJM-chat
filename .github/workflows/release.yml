@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to upload artifacts to (defaults to branch name)'
+        description: 'Release tag to upload artifacts to (defaults to pushed tag)'
         required: false
         default: ''
       os:
@@ -24,114 +24,29 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    if: inputs.os == '' || inputs.os == 'all' || inputs.os == matrix.platform
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-          - os: windows-latest
-            platform: win
-          - os: ubuntu-latest
-            platform: linux
+  mac:
+    if: github.event_name != 'workflow_dispatch' || inputs.os == 'all' || inputs.os == 'mac'
+    uses: ./.github/workflows/release-platform.yml
+    with:
+      platform: mac
+      runner: macos-latest
+      tag: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+    secrets: inherit
 
-    steps:
-      - uses: actions/checkout@v4
+  win:
+    if: github.event_name != 'workflow_dispatch' || inputs.os == 'all' || inputs.os == 'win'
+    uses: ./.github/workflows/release-platform.yml
+    with:
+      platform: win
+      runner: windows-latest
+      tag: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+    secrets: inherit
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Create env file
-        shell: bash
-        env:
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          ENC_KEY: ${{ secrets.VITE_ENCRYPTION_KEY }}
-          LEGACY_ENC_KEY: ${{ secrets.VITE_LEGACY_ENCRYPTION_KEY }}
-          IMGBB_KEY: ${{ secrets.VITE_IMGBB_API_KEY }}
-        run: |
-          echo "VITE_SUPABASE_URL=$SUPABASE_URL" > .env.local
-          echo "VITE_SUPABASE_ANON_KEY=$SUPABASE_KEY" >> .env.local
-          echo "VITE_ENCRYPTION_KEY=$ENC_KEY" >> .env.local
-          echo "VITE_LEGACY_ENCRYPTION_KEY=$LEGACY_ENC_KEY" >> .env.local
-          echo "VITE_IMGBB_API_KEY=$IMGBB_KEY" >> .env.local
-          cp .env.local packages/web/.env.local
-
-      - name: Resolve release tag
-        id: tag
-        shell: bash
-        run: echo "TAG=${TAG:-$GITHUB_REF_NAME}" >> "$GITHUB_ENV"
-        env:
-          TAG: ${{ github.event.inputs.tag }}
-
-      - name: Install Linux build tools
-        if: matrix.platform == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y dpkg fakeroot libfuse2
-
-      - name: Build
-        run: npm run build
-
-      - name: Remove stale assets for this platform
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG not found, skipping cleanup"
-            exit 0
-          fi
-          case "${{ matrix.platform }}" in
-            mac)   RX='\.(dmg|zip)$' ;;
-            win)   RX='\.exe$' ;;
-            linux) RX='\.(deb|AppImage)$' ;;
-          esac
-          gh release view "$TAG" --json assets --jq ".[] | select(.name | test(\"$RX\")) | .name" 2>/dev/null | while IFS= read -r name; do
-            [ -n "$name" ] && gh release delete-asset "$TAG" "$name" --yes || true
-          done
-
-      - name: Import macOS signing cert
-        if: matrix.platform == 'mac'
-        run: |
-          if [ -n "$CSC_LINK" ]; then
-            echo "$CSC_LINK" | base64 --decode > /tmp/cert.p12
-            security create-keychain -p temp temp.keychain
-            security default-keychain -s temp.keychain
-            security unlock-keychain -p temp temp.keychain
-            security import /tmp/cert.p12 -k temp.keychain -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temp temp.keychain
-          else
-            echo "No signing cert, skipping"
-          fi
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-
-      - name: Package
-        shell: bash
-        run: cd packages/main && npx electron-builder --${{ matrix.platform }} --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          files: |
-            packages/main/release/*.dmg
-            packages/main/release/*.zip
-            packages/main/release/*.AppImage
-            packages/main/release/*.deb
-            packages/main/release/*.exe
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  linux:
+    if: github.event_name != 'workflow_dispatch' || inputs.os == 'all' || inputs.os == 'linux'
+    uses: ./.github/workflows/release-platform.yml
+    with:
+      platform: linux
+      runner: ubuntu-latest
+      tag: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+    secrets: inherit
