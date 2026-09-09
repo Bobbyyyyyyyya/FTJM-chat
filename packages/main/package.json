@@ -1,6 +1,6 @@
 {
   "name": "@ftjm/main",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "Electron main process",
   "author": {
     "name": "FTJM Team",

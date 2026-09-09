@@ -207,6 +207,9 @@ const IMGBB_API_KEY = import.meta.env.VITE_IMGBB_API_KEY || ''
 const IMGBB_UPLOAD_URL = 'https://api.imgbb.com/1/upload'
 
 export async function uploadToImgBb(dataUri: string): Promise<string> {
+  if (!IMGBB_API_KEY) {
+    throw new Error('ImgBB API key is missing. Build with VITE_IMGBB_API_KEY set.')
+  }
   const base64Data = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri
 
   const formData = new FormData()
