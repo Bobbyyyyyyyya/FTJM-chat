@@ -18,7 +18,7 @@ Dit document beschrijft alle Row Level Security (RLS) policies voor de FTJM Chat
 
 ```bash
 # Zorg dat je in de root van het project bent
-cd /Users/thijmen/FTJM\ chat
+cd FTJM-chat
 
 # Link je Supabase project (eenmalig)
 supabase link --project-id your-project-ref

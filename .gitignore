@@ -6,4 +6,5 @@ dist/
 packages/*/dist/
 packages/main/release/
 packages/main/web-dist/
+supabase/
 *.log

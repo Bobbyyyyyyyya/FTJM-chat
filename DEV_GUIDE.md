@@ -5,7 +5,7 @@
 ### 1. First Time Setup
 
 ```bash
-cd /Users/thijmen/ftjm-chat
+cd FTJM-chat
 
 # Ensure .env.local exists with Supabase credentials
 cat .env.local
