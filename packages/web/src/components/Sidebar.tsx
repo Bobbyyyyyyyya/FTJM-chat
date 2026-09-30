@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import type { ChatTab } from '@/lib/types'
 import type { Conversation } from '@/lib/db'
 import VerifiedBadge from '@/components/VerifiedBadge'
+import DeveloperBadge from '@/components/DeveloperBadge'
+import { isDeveloper } from '@/lib/developerBadge'
 import CachedImg from '@/components/CachedImg'
 
 interface SidebarProps {
@@ -381,6 +383,7 @@ export default function Sidebar({
               <div className="flex items-center gap-1.5">
                 <h3 className="text-sm font-bold text-primary">{user?.display_name}</h3>
                 {user?.is_verified && <VerifiedBadge className="w-3.5 h-3.5" />}
+                {isDeveloper(user?.display_name) && <DeveloperBadge className="w-3.5 h-3.5" />}
               </div>
               <p className="text-[11px] text-muted mt-0.5">{user?.email || 'Online'}</p>
 

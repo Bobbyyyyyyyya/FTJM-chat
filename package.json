@@ -30,5 +30,8 @@
   ],
   "pnpm": {
     "shamefully-hoist": true
+  },
+  "dependencies": {
+    "electron": "^44.5.1"
   }
 }

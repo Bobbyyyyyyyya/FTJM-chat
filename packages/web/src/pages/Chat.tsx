@@ -50,6 +50,8 @@ import type { ChatTab, ProfileMedia as ProfileMediaType } from '@/lib/types'
 import { useVoiceCallContext } from '@/hooks/useVoiceCallContext'
 import ReportModal from '@/components/ReportModal'
 import VerifiedBadge from '@/components/VerifiedBadge'
+import DeveloperBadge from '@/components/DeveloperBadge'
+import { isDeveloper } from '@/lib/developerBadge'
 import Sidebar from '@/components/Sidebar'
 import CachedImg from '@/components/CachedImg'
 import useCachedUrl from '@/hooks/useCachedUrl'
@@ -322,11 +324,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
   }, [])
 
   // Load feed only when feed tab is opened
-  const feedLoaded = useRef(false)
   const followingIdsCache = useRef<string[] | null>(null)
   useEffect(() => {
-    if (!user?.id || activeTab !== 'feed' || feedLoaded.current) return
-    feedLoaded.current = true
+    if (!user?.id || activeTab !== 'feed') return
     loadFeed()
   }, [user?.id, activeTab])
 
@@ -379,8 +379,16 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     let subscription: any = null
     let typingSub: any = null
     let isActive = true
+    let previousConvId: string | null = null
+
+    setTypingUsers([])
 
     const loadMessages = async () => {
+      if (previousConvId && previousConvId !== selectedConvId) {
+        setTypingStatus(previousConvId, user.id, false).catch(() => {})
+      }
+      previousConvId = selectedConvId
+
       try {
         const { conversation, messages: msgs } = await getConversation(selectedConvId)
         if (!isActive) return
@@ -417,8 +425,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
         })
 
         typingSub = subscribeToTypingStatus(selectedConvId, (users) => {
+          if (!isActive) return
           setTypingUsers(
-            users.filter((t) => t.user_id !== user.id).map((t) => t.user_id)
+            [...new Set(users.filter((t) => t.user_id !== user.id).map((t) => t.user_id))]
           )
         })
 
@@ -438,6 +447,9 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
       isActive = false
       subscription?.unsubscribe()
       typingSub?.unsubscribe()
+      if (previousConvId) {
+        setTypingStatus(previousConvId, user.id, false).catch(() => {})
+      }
     }
   }, [selectedConvId, user?.id])
 
@@ -489,15 +501,50 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
     }
   }
 
-  const handleTyping = async (typing: boolean) => {
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typingStopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+      if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current)
+    }
+  }, [])
+
+  const handleTyping = useCallback((typing: boolean) => {
     if (!selectedConvId || !user?.id) return
     setIsTyping(typing)
-    try {
-      await setTypingStatus(selectedConvId, user.id, typing)
-    } catch (error) {
-      console.error('Error updating typing status:', error)
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current)
+
+    if (typing) {
+      typingTimeoutRef.current = setTimeout(async () => {
+        try {
+          await setTypingStatus(selectedConvId, user.id, true)
+        } catch (error) {
+          console.error('Error updating typing status:', error)
+        }
+      }, 300)
+
+      typingStopTimeoutRef.current = setTimeout(async () => {
+        try {
+          await setTypingStatus(selectedConvId, user.id, false)
+          setIsTyping(false)
+        } catch (error) {
+          console.error('Error clearing typing status:', error)
+        }
+      }, 5000)
+    } else {
+      typingTimeoutRef.current = setTimeout(async () => {
+        try {
+          await setTypingStatus(selectedConvId, user.id, false)
+        } catch (error) {
+          console.error('Error updating typing status:', error)
+        }
+      }, 300)
     }
-  }
+  }, [selectedConvId, user?.id])
 
   const handleEditMessage = (msg: Message) => {
     setEditingId({ type: 'dm', id: msg.id })
@@ -908,6 +955,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             {preview.display_name}
                           </p>
                           {!isGroup && preview.is_verified && <VerifiedBadge className="w-3 h-3" />}
+                          {!isGroup && isDeveloper(preview.display_name) && <DeveloperBadge className="w-3 h-3" />}
                         </div>
                         <p className="text-[11px] text-muted">
                           {isGroup ? 'Group' : 'Direct message'}
@@ -975,6 +1023,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                           {preview.display_name}
                                         </p>
                                         {!isGroup && preview.is_verified && <VerifiedBadge className="w-3 h-3" />}
+                                        {!isGroup && isDeveloper(preview.display_name) && <DeveloperBadge className="w-3 h-3" />}
                                       </div>
                                       <p className="text-[11px] text-muted">
                                         {isGroup ? 'Group' : 'Direct message'}
@@ -1143,6 +1192,17 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                 <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-muted cursor-not-allowed opacity-50">
                   Upload (binnenkort terug)
                 </span>
+                {/* Refresh feed */}
+                <button
+                  onClick={loadFeed}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-surface-muted text-secondary hover:bg-surface-hover transition-all"
+                  title="Vernieuw feed"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Vernieuw
+                </button>
                 {/* Sort dropdown */}
                 <div className="relative">
                   <button
@@ -1304,6 +1364,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                                 {author?.role === 'mod' && (
                                   <svg className="w-3 h-3 text-blue-300" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
                                 )}
+                                {isDeveloper(authorName) && <DeveloperBadge className="w-3 h-3" />}
                               </span>
                             </div>
                             <span className="absolute top-3 right-3 text-[9px] px-2 py-0.5 rounded-full bg-black/30 text-white/80 backdrop-blur-sm uppercase font-medium">
@@ -1484,6 +1545,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             {!isMine && participant.role === 'mod' && (
                               <svg className="w-3 h-3 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
                             )}
+                            {!isMine && isDeveloper(participant.display_name) && <DeveloperBadge className="w-3 h-3" />}
                             {!isMine && participant.is_verified && (
                               <VerifiedBadge className="w-3 h-3" />
                             )}
@@ -1652,6 +1714,7 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                             {authorInfo.role === 'mod' && (
                               <svg className="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
                             )}
+                            {isDeveloper(authorName) && <DeveloperBadge className="w-3.5 h-3.5" />}
                             {authorInfo.is_verified && (
                               <VerifiedBadge className="w-3.5 h-3.5" />
                             )}
@@ -1886,16 +1949,25 @@ export default function ChatPage({ onlineUsers }: { onlineUsers: Set<string> }) 
                     {profilePreview.is_verified && (
                       <VerifiedBadge className="w-4 h-4" />
                     )}
-                    {(profilePreview.role === 'admin' || profilePreview.role === 'mod') && (
+                    {profilePreview.role === 'admin' && (
                       <svg className="w-5 h-5 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/>
                       </svg>
                     )}
+                    {profilePreview.role === 'mod' && (
+                      <svg className="w-5 h-5 shrink-0 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/>
+                      </svg>
+                    )}
+                    {isDeveloper(profilePreview.display_name) && <DeveloperBadge className="w-5 h-5" />}
                     {profilePreview.role === 'admin' && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-400/15 text-amber-400">Admin</span>
                     )}
                     {profilePreview.role === 'mod' && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-400/15 text-blue-400">Mod</span>
+                    )}
+                    {isDeveloper(profilePreview.display_name) && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-400/15 text-emerald-400">Developer</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">

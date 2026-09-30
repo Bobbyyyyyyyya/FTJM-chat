@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { createReport, hasAlreadyReported } from '@/lib/db-reports'
 import { REPORT_REASONS } from '@/lib/types'
@@ -35,9 +35,9 @@ export default function ReportModal({
   }
 
   // Check on mount
-  useState(() => {
+  useEffect(() => {
     checkExisting()
-  })
+  }, [])
 
   const handleSubmit = async () => {
     if (!reason || submitting) return
@@ -50,8 +50,12 @@ export default function ReportModal({
       })
       toast.success('Report ingediend')
       onClose()
-    } catch {
-      toast.error('Er is iets misgegaan bij het rapporteren')
+    } catch (error: any) {
+      if (error?.name === 'RateLimitError') {
+        toast.error(error.message)
+      } else {
+        toast.error('Er is iets misgegaan bij het rapporteren')
+      }
     } finally {
       setSubmitting(false)
     }

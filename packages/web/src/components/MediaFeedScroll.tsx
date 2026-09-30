@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react'
 import type { ProfileMedia } from '@/lib/types'
 import { likeMedia, unlikeMedia, addComment, deleteComment } from '@/lib/db-social'
 import CachedImg from '@/components/CachedImg'
+import DeveloperBadge from '@/components/DeveloperBadge'
+import { isDeveloper } from '@/lib/developerBadge'
 
 interface MediaFeedScrollProps {
   media: ProfileMedia[]
@@ -227,6 +229,7 @@ export default function MediaFeedScroll({ media, profilesCache, currentUserId, o
                     {author?.role === 'mod' && (
                       <svg className="w-3.5 h-3.5 text-blue-300" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
                     )}
+                    {isDeveloper(authorName) && <DeveloperBadge className="w-3.5 h-3.5" />}
                   </span>
                 </div>
               </div>
